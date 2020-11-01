@@ -62,9 +62,9 @@ run-wwz() {
 all() {
   rm -f _tmp/logs/*
 
-  # Uncomment to test the tracing ability.
-  export WWZ_REQUEST_LOG_DIR=_tmp/logs
-  #export WWZ_TRACE_LOG_DIR=_tmp/logs
+  # Uncomment to test the logging ability.
+  #export WWZ_REQUEST_LOG=1
+  #export WWZ_TRACE_LOG=1
 
   # wwz not found
   run-wwz $PWD /testdata/foo.wwz /a/b/c

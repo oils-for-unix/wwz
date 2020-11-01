@@ -392,21 +392,21 @@ class App(object):
 
 
 def main(argv):
-  log_dir = argv[1]
+  log_dir = argv[1]  # for exceptions
 
   pid = os.getpid()
   timestamp = time.strftime('%Y-%m-%d__%H-%M-%S')
 
-  req_dir = os.getenv('WWZ_REQUEST_LOG_DIR')
-  if req_dir:
-    path1 = os.path.join(req_dir, '%s.%d.request.log' % (timestamp, pid))
+  log_requests = os.getenv('WWZ_REQUEST_LOG')
+  if log_requests:
+    path1 = os.path.join(log_dir, '%s.%d.request.log' % (timestamp, pid))
     request_log = TabularLogFile(REQUEST_LOG_SCHEMA, path1)
   else:
     request_log = NoLogFile()
 
-  trace_dir = os.getenv('WWZ_TRACE_LOG_DIR')
-  if trace_dir:
-    path2 = os.path.join(trace_dir, '%s.%d.trace.log' % (timestamp, pid))
+  trace = os.getenv('WWZ_TRACE_LOG')
+  if trace:
+    path2 = os.path.join(log_dir, '%s.%d.trace.log' % (timestamp, pid))
     trace_log = TabularLogFile(TRACE_SCHEMA, path2)
   else:
     trace_log = NoLogFile()
