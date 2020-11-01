@@ -11,6 +11,12 @@ context:
 - Why FastCGI and not CGI?  For lower latency.  We "cache" the opening of the
   zip file, and the overhead of starting CPython.
 
+## Live Demos
+
+- <https://www.oilshell.org/release/0.8.3/test/wild.wwz/> (HTML files thousands
+  of shell scripts)
+- <http://travis-ci.oilshell.org/jobs/> (for raw build logs)
+
 ## The General Idea
 
 `wwz.py` is a very small WSGI app.  You download the `flup` "middleware" which
