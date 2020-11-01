@@ -1,13 +1,15 @@
 wwz
 ===
 
-A FastCGI program that servers from a zip file.  See this comment for context:
+A FastCGI program that serves files from a zip file.  See this comment for
+context:
 
 - <https://lobste.rs/s/xl63ah/fastcgi_forgotten_treasure#c_4jggfz>
-- Related answer: Why FastCGI and not HTTP?  Because processes are stateless.
+- Related answer: Why FastCGI and not HTTP?  Because FastCGI processes are
+  stateless/ephemeral.
   - <https://lobste.rs/s/xl63ah/fastcgi_forgotten_treasure#c_kaajpp>
-- Why FastCGI and not CGI?  For latency.  We "cache" the opening of the zip
-  file, and the overhead of starting CPython.
+- Why FastCGI and not CGI?  For lower latency.  We "cache" the opening of the
+  zip file, and the overhead of starting CPython.
 
 ## The General Idea
 
@@ -17,10 +19,14 @@ app into a CGI program.)
 
 ## Files
 
-    wwz.py        # The WSGI program
-    wwz-test.sh   # Shell tests for the FastCGI program
-    wwz.htaccess  # A snippet to configure Apache on Dreamhost
-    admin.sh      # Some shell functions that may be useful
+    wwz.py         # The WSGI program
+    wwz-test.sh    # Shell tests for the FastCGI program
+    wwz.htaccess   # A snippet to configure Apache on Dreamhost
+    admin.sh       # Some shell functions that may be useful
+
+Not included:
+
+    dispatch.fcgi  # A shell wrapper specific to the hosting environment.
 
 ## Local Development
 
@@ -37,16 +43,18 @@ Then test out the app locally:
 
 ## Deploying
 
-I deploy it on Dreamhost.  Instructions may differ on other servers.  (TODO: I
-want to stand it up on NearlyFreeSpeech too.)
+I deploy it on Dreamhost.  Instructions vary depending on the web host.  (TODO:
+I want to stand it up on NearlyFreeSpeech too.)
 
-We need:
+Requirements:
 
-1. A directory for the binary, and optionally a directory for logs.
-2. A `dispatch.fcgi` script that sets PYTHONPATH and execs wwz.py.
-3. The `.htaccess` file.
+1. A directory for the binary
+2. A directory for logs and unhandled exceptions.
+3. A `dispatch.fcgi` script that sets PYTHONPATH and execs `wwz.py`.
+4. The `.htaccess` file for Apache to read.
 
-If all those elements are in place, Dreamhost's apache server will send requests like 
+If all those elements are in place, Dreamhost's Apache server will send
+requests like 
 
     https://www.oilshell.org/release/0.8.1/test/wild.wwz/
 
@@ -56,19 +64,19 @@ request.)
 
 Example deploy function:
 
-		for-travis() {
-			local dest=~/travis-ci.oilshell.org
+    for-travis() {
+      local dest=~/travis-ci.oilshell.org
 
-			mkdir -v -p $dest/wwz-bin ~/wwz-logs
+      mkdir -v -p $dest/wwz-bin ~/wwz-logs
 
-			cp -v wwz.htaccess $dest/.htaccess
+      cp -v wwz.htaccess $dest/.htaccess
 
-			cp -v wwz.py $dest/wwz-bin/
-			cp -v travis_dispatch.fcgi $dest/wwz-bin/dispatch.fcgi
+      cp -v wwz.py $dest/wwz-bin/
+      cp -v travis_dispatch.fcgi $dest/wwz-bin/dispatch.fcgi
 
-			make-testdata
-			copy-testdata
-		}
+      make-testdata
+      copy-testdata
+    }
 
 Example `dispatch.fcgi`:
 
