@@ -95,6 +95,13 @@ Sometimes I do this on the server:
 
     ./admin.sh kill-wwz
 
+## Feedback
 
+I'm interested if you deploy this script on shared hosting and use it to serve
+content.
+
+Feel free to fork and modify!  It's been working for ~3 years for me without
+many changes.  I may or may not accept PRs, but let me know what you're doing
+with it!
 
 
