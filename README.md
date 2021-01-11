@@ -15,7 +15,7 @@ context:
 
 - <https://www.oilshell.org/release/0.8.3/test/wild.wwz/> (HTML files thousands
   of shell scripts)
-- <http://travis-ci.oilshell.org/jobs/> (for raw build logs)
+- <http://travis-ci.oilshell.org/travis-jobs/> (for raw build logs)
 
 ## The General Idea
 
