@@ -353,6 +353,10 @@ class App(object):
     elif internal_path.endswith('.png'):
       content_type = 'image/png'
       is_binary = True
+    elif internal_path.endswith('.tar'):  # for _release/oil.tar
+      # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+      content_type = 'application/x-tar'
+      is_binary = True
     else:
       content_type = 'text/plain'  # default
 

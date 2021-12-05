@@ -27,6 +27,7 @@ make-testdata() {
   echo 'wwz txt'     > _wwz/foo.txt
   echo 'wwz no extension'      > _wwz/dir/foo
   echo '<p>dir/index.html</p>' > _wwz/dir/index.html
+  tar --create --file _wwz/test.tar _wwz/*
 
   mkdir -p testdata
   local out=$PWD/testdata/test.wwz
@@ -76,6 +77,7 @@ all() {
   run-wwz $PWD /testdata/test.wwz /foo.txt
   run-wwz $PWD /testdata/test.wwz /dir/foo
   run-wwz $PWD /testdata/test.wwz /dir/
+  run-wwz $PWD /testdata/test.wwz /test.tar
 
   # file not found in wwz
   run-wwz $PWD /testdata/test.wwz /not-a-file
