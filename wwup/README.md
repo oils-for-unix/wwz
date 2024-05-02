@@ -14,6 +14,8 @@ Why?
     connect wsgiref and cgi.
 - Unlike wwz, we don't need FastCGI for uploads.  We actually want a separate
   process per upload.
+- PHP has a built-in parser and `$_FILES`, but I already used it for hashdiv
+  - wwz is written in Python, so let's stick with Python
 
 
 ## TODO
