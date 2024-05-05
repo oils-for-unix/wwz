@@ -390,9 +390,9 @@ class App(object):
       try:
         body = z.get_data(index_html)
       except IOError as e:
-        # No index.html - redirect to wwz-index
+        # No index.html - redirect to wwz-index (RELATIVE URL)
         if REDIRECT_RE.match(internal_path):
-          yield Redirect(start_response, internal_path + 'wwz-index')
+          yield Redirect(start_response, 'wwz-index')
         else:
           yield BadRequest(start_response, 'Invalid path %r' % internal_path)
         return
