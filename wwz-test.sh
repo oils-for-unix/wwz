@@ -22,7 +22,7 @@ unit() {
 }
 
 make-testdata() {
-  mkdir -p _wwz/{dir,no-index,empty-dir}  # input data
+  mkdir -p _wwz/{dir,dir/dir2,no-index,empty-dir}  # input data
   # .wwz is just a zip file?  Compression can be changed later?
 
   # I guess zip files have a magic number so it's OK to change it.
@@ -117,10 +117,10 @@ cgi-test() {
   # Should print an index of files
   run-wwz $PWD /testdata/test.wwz /-wwz-index
   run-wwz $PWD /testdata/test.wwz /dir/-wwz-index
+  run-wwz $PWD /testdata/test.wwz /dir/dir2/-wwz-index
 
   # Should redirect to wwz-index
   run-wwz $PWD /testdata/test.wwz /no-index/
-
   run-wwz $PWD /testdata/test.wwz /no-index/-wwz-index
 
   run-wwz $PWD /testdata/test.wwz /empty-dir/-wwz-index

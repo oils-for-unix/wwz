@@ -1,4 +1,5 @@
 #!/usr/bin/python -S
+from __future__ import print_function
 """
 wwz.py - Serve web content directly from a zip file.
 
@@ -120,7 +121,7 @@ def log(msg, *args):
   """Print to stderr.  Shows up in error.log."""
   if args:
     msg = msg % args
-  print >>sys.stderr, msg
+  print(msg, file=sys.stderr)
 
 
 HTML_UTF8 = ('Content-Type', 'text/html; charset=utf-8')
@@ -159,7 +160,7 @@ def BadRequest(start_response, msg, *args):
     msg = msg % args
   start_response('400 Bad Request', [HTML_UTF8])
   body = """\
-<h1>400 Bad Request</h1>
+<h1>wwz: 400 Bad Request</h1>
 <p>%s</p>
 """ % cgi.escape(msg)
   return [body]
@@ -173,7 +174,7 @@ def NotFound(start_response, msg, *args):
     msg = msg % args
   start_response('404 Not Found', [HTML_UTF8])
   body = """\
-<h1>404 Not Found</h1>
+<h1>wwz: 404 Not Found</h1>
 <p>%s</p>
 """ % cgi.escape(msg)
   return [body]
@@ -193,7 +194,7 @@ def Redirect(start_response, location):
   """
   start_response('302 Found', [HTML_UTF8, ('Location', location)])
   body = """\
-<h1>302 Found</h1>
+<h1>wwz: 302 Found</h1>
 <p>%s</p>
 """ % cgi.escape(location)
   return [body]
@@ -201,6 +202,64 @@ def Redirect(start_response, location):
 
 DEBUG = False
 #DEBUG = True
+
+
+def _MakeListing(wwz_name, rel_paths, dir_prefix):
+  # anchors and urls is the breadcrumb
+  page_data = {'files': [], 'dirs': [], 'anchors': [], 'urls': []}
+
+  dirs = set()
+
+  for rel_path in rel_paths:
+    if rel_path == dir_prefix:
+      continue  # don't list yourself
+    if not rel_path.startswith(dir_prefix):
+      continue  # not under this dir
+
+    zip_rel_path = rel_path[len(dir_prefix):]
+
+    # Here we assume that dirs end with /, but files don't.
+    # That appears to be true in zips.
+
+    slash1 = zip_rel_path.find('/')
+    if slash1 == -1:
+      # foo -> file is foo
+      page_data['files'].append(zip_rel_path)
+    else:
+      slash2 = zip_rel_path.find('/', slash1 + 1)
+      if slash2 == -1:
+        # foo/bar but not foo/bar/
+        dir_name = zip_rel_path[:slash1+1]  # include /
+        dirs.add(dir_name)
+
+  page_data['dirs'].extend(sorted(dirs))
+
+  parts = [p for p in dir_prefix.split('/') if p]
+  anchors = [wwz_name] + parts
+
+  links = [None] * len(anchors)
+  n = len(anchors)
+  for i in xrange(n-1):
+    dots = ['..'] * (n - i - 1)
+    links[i] = '/'.join(dots) + '/-wwz-index'
+
+  page_data['anchors'] = anchors
+  page_data['links'] = links
+
+  return page_data
+
+
+def _EntriesHtml(heading, entries):
+  yield '<h1>%s</h1>\n' % cgi.escape(heading)
+
+  if len(entries):
+    for entry in entries:
+      escaped = cgi.escape(entry, quote=True)
+      yield '<a href="%s">%s</a>\n' % (escaped, escaped)
+  else:
+    yield '<i>(no entries)</i>\n'
+
+  yield '\n'
 
 
 class App(object):
@@ -235,7 +294,7 @@ class App(object):
     <div style="text-align: right">
       <a href="..">Up</a> | <a href="%s">wwz Index</a>
     </div>
-    ''' % '/-wwz-index'
+    ''' % '-wwz-index'
 
     yield '<h1>%s</h1>\n' % title
 
@@ -279,17 +338,11 @@ class App(object):
       log('rel_path = %r', rel_path)
       log('dir_prefix = %r', dir_prefix)
 
-    # TODO:
-    # - Only serve direct descendant dirs
-    #   - Write unit tests for this calculation
-    # - could have a breadcrumb here
-
-    # Example:
-    #
+    # Suppose we have these request paths:
     #   dir/foo.wwz/spam/eggs/-wwz-index
     #   dir/foo.wwz/-wwz-index
     #
-    #   wwz_rel_path = dir/foo.wwz in both cases
+    # Then in both cases:
     #   wwz_abs_path = ~/www/dir/foo.wwz
     #
     #   rel_path = 
@@ -297,10 +350,11 @@ class App(object):
     #     spam/eggs/-wwz-index
     #   dir_prefix
     #     ''
-    #     spam/eggs
+    #     spam/
+    #     spam/eggs/
 
     wwz_name = os.path.basename(wwz_abs_path)
-    title = 'Listing %s - %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
+    title = '%s : %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
     yield _HtmlHeader(title, wwz_base_url + '/-wwz-css')
 
     yield '''
@@ -309,19 +363,30 @@ class App(object):
     </div>
     ''' % (wwz_base_url + '/-wwz-status')
 
-    yield '<h1>%s</h1>\n' % title
+    page_data = _MakeListing(wwz_name, z.namelist(), dir_prefix)
 
+    if DEBUG:
+      from pprint import pformat
+      log('%s', pformat(page_data))
+      log('')
+
+    yield '<div class="breadcrumb">\n'
     i = 0
-    for name in z.namelist():
-      if name.startswith(dir_prefix) and name != dir_prefix:
-        zip_rel_path = name[len(dir_prefix):]
-        escaped = cgi.escape(zip_rel_path, quote=True)
-        yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
-        i += 1
-    if i == 0:
-      yield '<i>(Empty directory)</i>'
+    for anchor, link in zip(page_data['anchors'], page_data['links']):
+      if link is None:
+        yield '<span>%s</span>\n' % cgi.escape(anchor)
+      else:
+        yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True), cgi.escape(anchor))
+      if i != 0:
+        yield '/\n'  # separator
+    yield '</div>\n\n'
 
-    yield '<hr/>'
+    for chunk in _EntriesHtml('Files', page_data['files']):
+      yield chunk
+
+    for chunk in _EntriesHtml('Dirs', page_data['dirs']):
+      yield chunk
+
     yield _HtmlFooter()
 
   def _LogException(self, unique_id, request_uri, exc_type, e, tb):
@@ -419,9 +484,7 @@ class App(object):
 
     n = len(path_info)
     wwz_base_url = request_uri[:-n]   # /dir/foo.wwz
-    wwz_rel_path = wwz_base_url[1:]   # dir/foo.wwz
-
-    wwz_abs_path = os.path.join(doc_root, wwz_rel_path)
+    wwz_abs_path = os.path.join(doc_root, wwz_base_url[1:])
 
     # Use the timestamp on the whole .zip file as the Last-Modified header.  If
     # ANY file in the .zip is modified, consider the whole thing modified.  I
