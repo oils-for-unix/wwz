@@ -295,7 +295,7 @@ class App(object):
     #     spam/eggs
 
     wwz_name = os.path.basename(wwz_abs_path)
-    title = '%s %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
+    title = '%s &nbsp; / &nbsp; %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
     yield _HtmlHeader(title, wwz_base_url + '/-wwz-css')
 
     yield '''
@@ -442,7 +442,7 @@ class App(object):
       return list(self.StatusPage(environ, start_response))
 
     if rel_path == '-wwz-index' or rel_path.endswith('/-wwz-index'):
-      dir_prefix = rel_path[:-len('wwz-index')]
+      dir_prefix = rel_path[:-len('-wwz-index')]
 
       return list(self.IndexListing(start_response, wwz_base_url, wwz_abs_path,
                                     rel_path, dir_prefix, last_modified))
