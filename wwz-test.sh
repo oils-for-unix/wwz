@@ -14,6 +14,13 @@ set -o nounset
 set -o pipefail
 set -o errexit
 
+FLUP_PATH=_tmp/flup-1.0.3.dev-20110405 
+TEST_DIR=_tmp/wwz-test
+
+unit() {
+  PYTHONPATH=$FLUP_PATH ./wwz_test.py
+}
+
 make-testdata() {
   mkdir -p _wwz/{dir,no-index,empty-dir}  # input data
   # .wwz is just a zip file?  Compression can be changed later?
@@ -61,11 +68,32 @@ run-wwz() {
   echo
 
   mkdir -p _tmp/logs
-  PYTHONPATH=_tmp/flup-1.0.3.dev-20110405 ./wwz.py _tmp/logs
+  PYTHONPATH=$FLUP_PATH ./wwz.py _tmp/logs | tee $TEST_DIR/out.txt
+
+  verify-response $TEST_DIR/out.txt 
+
   echo
 }
 
-all() {
+cgi_first_re='^Status: (200|302|400|404)'
+
+verify-response() {
+  local response=$1
+
+  read -r line < $response
+
+  if [[ $line =~ $cgi_first_re ]]; then
+    echo "good: $line"
+    return
+  fi
+
+  echo "FAILED: first line = $line"
+  return 1
+}
+
+cgi-test() {
+  mkdir -p $TEST_DIR
+
   rm -f _tmp/logs/*
 
   # TODO: assert HTTP status, headers, body
@@ -111,6 +139,11 @@ all() {
   run-wwz $PWD /testdata/test.wwz /wwz-status
 
   wc -l _tmp/logs/*
+}
+
+all() {
+  cgi-test
+  unit
 }
 
 "$@"

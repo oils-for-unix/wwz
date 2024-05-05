@@ -1,27 +1,9 @@
 #!/usr/bin/python -S
 """
-wwz.py
+wwz.py - Serve web content directly from a zip file.
 
 -S gives a slight speedup. Although most of the latency appears to be on the
 Dreamhost side.
-
-TODO:
-  - Investigate caching headers.  What does Dreamhost do for dynamic content?
-    We want it to behave like static content.
-
-- Problem: should we serve .js and .css with content types?
-  - The problem is that they will be slow.  Maybe best to keep them outside.
-
-Example request:
-
-Given the rewrite rule in .htaccess, and URL
-http://chubot.org/wwz-test/foo.wwz/a/b/c 
-
-we get CGI vars:
-
-PATH_INFO = /a/b/c
-REQUEST_URI = /wwz-test/foo.wwz/a/b/c
-DOCUMENT_ROOT = /home/chubot/chubot.org
 """
 
 import cgi
@@ -41,7 +23,7 @@ import zipimport
 #
 # import zipfile
 # with zipfile.ZipFile(wwz_path) as z:
-#   body = z.read(internal_path)
+#   body = z.read(rel_path)
 
 
 from flup.server.fcgi import WSGIServer
@@ -215,9 +197,7 @@ class App(object):
   def StatusPage(self, environ, start_response):
     """Serve the status page so we can monitor it.
 
-    TODO: Should we just have a JSON page and an HTML page?
-    Or only JSON?
-
+    Note: we could also have a JSON status page
     """
     start_response('200 OK', [HTML_UTF8])
     yield """
@@ -326,6 +306,18 @@ class App(object):
 
   def Respond(self, environ, start_response, tracer):
     """Called from multiple threads."""
+
+    # Example request:
+
+    # Given the rewrite rule in .htaccess, and URL
+    # http://chubot.org/wwz-test/foo.wwz/a/b/c 
+
+    # we get CGI vars:
+
+    # PATH_INFO = /a/b/c
+    # REQUEST_URI = /wwz-test/foo.wwz/a/b/c
+    # DOCUMENT_ROOT = /home/chubot/chubot.org
+
     request_uri = environ['REQUEST_URI']
     path_info = environ.get('PATH_INFO', '')
 
@@ -353,39 +345,68 @@ class App(object):
     # Use the timestamp on the whole .zip file as the Last-Modified header.  If
     # ANY file in the .zip is modified, consider the whole thing modified.  I
     # think that is fine.
-    mtime = os.path.getmtime(wwz_path)
+    try:
+      mtime = os.path.getmtime(wwz_path)
+    except OSError as e:
+      yield NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
+      return
+
     # https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
     last_modified = ('Last-Modified', formatdate(mtime, localtime=False, usegmt=True))
 
-    internal_path = path_info[1:]  # remove leading /
+    rel_path = path_info[1:]  # remove leading /
 
     # 2024-05: Use zipfile module, not zipimport, because it can list files
-    if internal_path == 'wwz-index' or internal_path.endswith('/wwz-index'):
+    if rel_path == 'wwz-index' or rel_path.endswith('/wwz-index'):
       import zipfile
 
       z = zipfile.ZipFile(wwz_path)
-      prefix = internal_path[:-len('wwz-index')]
+      dir_prefix = rel_path[:-len('wwz-index')]
 
       start_response('200 OK', [HTML_UTF8, last_modified])
 
-      log('internal_path = %r', internal_path)
-      log('prefix = %r', prefix)
+      log('rel_path = %r', rel_path)
+      log('dir_prefix = %r', dir_prefix)
 
       # TODO:
       # - could have a breadcrumb here
       # - add CSS in HTML head
+      #   - margin
+      # - Only serve direct descendant dirs
+      #
+      # - Write unit tests for this calculation
+      # - refactor away from 'yield' style -- just return the whole damn page I
+      #   think
+      #   - refactor 302, 400, 404, 202, responses together
+
+      # - Rename rel_path and path_info
+      #   - these are derived from REQUEST_URI and PATH_INFO
+      #   - wwz_path, relative_path (relative to wwz)
+      #
+      # Example:
+      #   dir/foo.wwz/spam/eggs/wwz-index
+      #   dir/foo.wwz/wwz-index
+      #
+      #   wwz_rel_path = dir/foo.wwz in both cases
+      #   wwz_path = ~/www/dir/foo.wwz
+      #   rel_path = 
+      #     wwz-index
+      #     spam/eggs/wwz-index
+      #   dir_prefix
+      #     ''
+      #     spam/eggs
 
       yield '<div style="text-align: right"><a href="..">Up</a></div>\n'
       yield '\n'
 
       wwz_name = os.path.basename(wwz_path)
-      yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(prefix))
+      yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
       yield '\n'
 
       i = 0
       for name in z.namelist():
-        if name.startswith(prefix) and name != prefix:
-          rel_path = name[len(prefix):]
+        if name.startswith(dir_prefix) and name != dir_prefix:
+          rel_path = name[len(dir_prefix):]
           escaped = cgi.escape(rel_path, quote=True)
           yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
           i += 1
@@ -394,7 +415,7 @@ class App(object):
 
       return
 
-    if internal_path == 'wwz-status':
+    if rel_path == 'wwz-status':
       for chunk in self.StatusPage(environ, start_response):
         yield chunk
       return
@@ -425,33 +446,33 @@ class App(object):
 
     # The zipimporter has directory entries.  But we don't want to serve empty
     # files!
-    if internal_path == '' or internal_path.endswith('/'):
-      index_html = internal_path + 'index.html'
+    if rel_path == '' or rel_path.endswith('/'):
+      index_html = rel_path + 'index.html'
       content_type = 'text/html'
       try:
         body = z.get_data(index_html)
       except IOError as e:
         # No index.html - redirect to wwz-index (RELATIVE URL)
-        if REDIRECT_RE.match(internal_path):
+        if REDIRECT_RE.match(rel_path):
           yield Redirect(start_response, 'wwz-index')
         else:
-          yield BadRequest(start_response, 'Invalid path %r' % internal_path)
+          yield BadRequest(start_response, 'Invalid path %r' % rel_path)
         return
       # Keep going to serve the index.html body
 
     else:
-      if internal_path.endswith('.html'):
+      if rel_path.endswith('.html'):
         content_type = 'text/html'
-      elif internal_path.endswith('.css'):
+      elif rel_path.endswith('.css'):
         content_type = 'text/css'
-      elif internal_path.endswith('.js'):
+      elif rel_path.endswith('.js'):
         content_type = 'application/javascript'
-      elif internal_path.endswith('.json'):
+      elif rel_path.endswith('.json'):
         content_type = 'application/json'
-      elif internal_path.endswith('.png'):
+      elif rel_path.endswith('.png'):
         content_type = 'image/png'
         is_binary = True
-      elif internal_path.endswith('.tar'):  # for _release/oil.tar
+      elif rel_path.endswith('.tar'):  # for _release/oil.tar
         # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
         content_type = 'application/x-tar'
         is_binary = True
@@ -459,9 +480,9 @@ class App(object):
         content_type = 'text/plain'  # default
 
       try:
-        body = z.get_data(internal_path)
+        body = z.get_data(rel_path)
       except IOError as e:
-        yield NotFound(start_response, 'Path %r not found in wwz archive', internal_path)
+        yield NotFound(start_response, 'Path %r not found in wwz archive', rel_path)
         return
 
     tracer.Event('data-read')
@@ -479,7 +500,7 @@ class App(object):
     # Semi-unique hash gets perserved.  TODO: Bake an md5sum into .zip metadata?
     # Does this make the browser send conditional GETs?  Do crwalers ever use
     # this?
-    #print 'ETag: %s' % hash(internal_path)
+    #print 'ETag: %s' % hash(rel_path)
 
     start_response('200 OK', headers)
     yield body
