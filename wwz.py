@@ -350,7 +350,54 @@ class App(object):
 
     wwz_path = os.path.join(doc_root, wwz_rel_path)
 
+    # Use the timestamp on the whole .zip file as the Last-Modified header.  If
+    # ANY file in the .zip is modified, consider the whole thing modified.  I
+    # think that is fine.
+    mtime = os.path.getmtime(wwz_path)
+    # https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
+    last_modified = ('Last-Modified', formatdate(mtime, localtime=False, usegmt=True))
+
     internal_path = path_info[1:]  # remove leading /
+
+    # 2024-05: Use zipfile module, not zipimport, because it can list files
+    if internal_path == 'wwz-index' or internal_path.endswith('/wwz-index'):
+      import zipfile
+
+      z = zipfile.ZipFile(wwz_path)
+      prefix = internal_path[:-len('wwz-index')]
+
+      start_response('200 OK', [HTML_UTF8, last_modified])
+
+      log('internal_path = %r', internal_path)
+      log('prefix = %r', prefix)
+
+      # TODO:
+      # - could have a breadcrumb here
+      # - add CSS in HTML head
+
+      yield '<div style="text-align: right"><a href="..">Up</a></div>\n'
+      yield '\n'
+
+      wwz_name = os.path.basename(wwz_path)
+      yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(prefix))
+      yield '\n'
+
+      i = 0
+      for name in z.namelist():
+        if name.startswith(prefix) and name != prefix:
+          rel_path = name[len(prefix):]
+          escaped = cgi.escape(rel_path, quote=True)
+          yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
+          i += 1
+      if i == 0:
+        yield '<i>(Empty directory)</i>'
+
+      return
+
+    if internal_path == 'wwz-status':
+      for chunk in self.StatusPage(environ, start_response):
+        yield chunk
+      return
 
     tracer.Event('zip-begin')
 
@@ -372,12 +419,6 @@ class App(object):
         tracer.Event('cached-zip')
 
     tracer.Event('zip-end')
-
-    if internal_path == 'wwz-index' or internal_path.endswith('/wwz-index'):
-      start_response('200 OK', [HTML_UTF8])
-      body = 'TODO - wwz-index'
-      yield body
-      return
 
     # It's a file
     is_binary = False
@@ -425,19 +466,13 @@ class App(object):
 
     tracer.Event('data-read')
 
-    # Use the timestamp on the whole .zip file as the Last-Modified header.  If
-    # ANY file in the .zip is modified, consider the whole thing modified.  I
-    # think that is fine.
-    mtime = os.path.getmtime(wwz_path)
-
     headers = []
     if not is_binary:
       content_type = '%s; charset=utf-8' % content_type
 
     headers = [
         ('Content-Type', content_type),
-        # https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
-        ('Last-Modified', formatdate(mtime, localtime=False, usegmt=True)),
+        last_modified,
     ]
 
     # Dreamhost does send ETag.

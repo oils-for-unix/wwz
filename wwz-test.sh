@@ -15,7 +15,7 @@ set -o pipefail
 set -o errexit
 
 make-testdata() {
-  mkdir -p _wwz/{dir,no-index}  # input data
+  mkdir -p _wwz/{dir,no-index,empty-dir}  # input data
   # .wwz is just a zip file?  Compression can be changed later?
 
   # I guess zip files have a magic number so it's OK to change it.
@@ -95,6 +95,8 @@ all() {
 
   run-wwz $PWD /testdata/test.wwz /no-index/wwz-index
 
+  run-wwz $PWD /testdata/test.wwz /empty-dir/wwz-index
+
   # Does flup catch this?  Doesn't look like it, so let's be paranoid and more
   # We don't want people to inject headers
   run-wwz $PWD /testdata/test.wwz $'/bad\nCookie: zzz/'
@@ -105,6 +107,8 @@ all() {
   # dir not found in wwz.  This will always redirect to wwz-index because of
   # trailing slash, but meh that's fine
   run-wwz $PWD /testdata/test.wwz /not-a-dir/
+
+  run-wwz $PWD /testdata/test.wwz /wwz-status
 
   wc -l _tmp/logs/*
 }
