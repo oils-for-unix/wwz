@@ -234,11 +234,9 @@ def _MakeListing(wwz_name, rel_paths, dir_prefix):
       # foo -> file is foo
       page_data['files'].append(zip_rel_path)
     else:
-      slash2 = zip_rel_path.find('/', slash1 + 1)
-      if slash2 == -1:
-        # foo/bar but not foo/bar/
-        dir_name = zip_rel_path[:slash1+1]  # include /
-        dirs.add(dir_name)
+      # Note: we can have a rel_path _tmp/soil/, but NOT _tmp/
+      dir_name = zip_rel_path[:slash1+1]  # include /
+      dirs.add(dir_name)
 
   page_data['dirs'].extend(sorted(dirs))
 
