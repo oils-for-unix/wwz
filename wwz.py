@@ -205,16 +205,24 @@ DEBUG = False
 
 
 def _MakeListing(wwz_name, rel_paths, dir_prefix):
+
   # anchors and urls is the breadcrumb
-  page_data = {'files': [], 'dirs': [], 'anchors': [], 'urls': []}
+  page_data = {
+    'files': [], 'dirs': [], 'anchors': [], 'urls': [], 'index_html': False
+    }
 
   dirs = set()
+
+  assert dir_prefix == '' or dir_prefix.endswith('/'), dir_prefix
 
   for rel_path in rel_paths:
     if rel_path == dir_prefix:
       continue  # don't list yourself
     if not rel_path.startswith(dir_prefix):
       continue  # not under this dir
+
+    if rel_path == dir_prefix + 'index.html':
+      page_data['index_html'] = True
 
     zip_rel_path = rel_path[len(dir_prefix):]
 
@@ -249,13 +257,13 @@ def _MakeListing(wwz_name, rel_paths, dir_prefix):
   return page_data
 
 
-def _EntriesHtml(heading, entries):
+def _EntriesHtml(heading, entries, url_suffix=''):
   yield '<h1>%s</h1>\n' % cgi.escape(heading)
 
   if len(entries):
     for entry in entries:
       escaped = cgi.escape(entry, quote=True)
-      yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
+      yield '<a href="%s">%s</a> <br/>\n' % (escaped + url_suffix, escaped)
   else:
     yield '<p><i>(no entries)</i></p>\n'
 
@@ -363,7 +371,8 @@ class App(object):
     </div>
     ''' % (wwz_base_url + '/-wwz-status')
 
-    page_data = _MakeListing(wwz_name, z.namelist(), dir_prefix)
+    rel_paths = z.namelist()
+    page_data = _MakeListing(wwz_name, rel_paths, dir_prefix)
 
     if DEBUG:
       from pprint import pformat
@@ -379,7 +388,8 @@ class App(object):
       if link is None:
         yield '<span>%s</span>\n' % cgi.escape(anchor)
       else:
-        yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True), cgi.escape(anchor))
+        yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True),
+                                         cgi.escape(anchor))
       i += 1
 
     yield '</div>\n\n'
@@ -387,8 +397,12 @@ class App(object):
     for chunk in _EntriesHtml('Files', page_data['files']):
       yield chunk
 
-    for chunk in _EntriesHtml('Dirs', page_data['dirs']):
+    for chunk in _EntriesHtml('Dirs', page_data['dirs'], url_suffix='-wwz-index'):
       yield chunk
+
+    if page_data['index_html']:
+      yield '<hr />\n'
+      yield '<p><a href="index.html">View index.html</a></p>\n'
 
     yield _HtmlFooter()
 
