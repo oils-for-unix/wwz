@@ -22,7 +22,7 @@ import zipimport
 # than zipimport!  ~700 ms vs. ~450 ms.
 #
 # import zipfile
-# with zipfile.ZipFile(wwz_path) as z:
+# with zipfile.ZipFile(wwz_abs_path) as z:
 #   body = z.read(rel_path)
 
 
@@ -228,7 +228,6 @@ class App(object):
     Note: we could also have a JSON status page
     """
     start_response('200 OK', [HTML_UTF8])
-    css_base_url = 'TODO'
     yield _HtmlHeader('wwz Status', '-wwz-css')
 
     yield '<h3>wwz Status</h3>\n'
@@ -263,23 +262,21 @@ class App(object):
     yield '<hr/>'
     yield _HtmlFooter()
 
-  def IndexListing(self, start_response, wwz_path, rel_path, dir_prefix, last_modified):
+  def IndexListing(self, start_response, wwz_base_url, wwz_abs_path, rel_path,
+                   dir_prefix, last_modified):
     # 2024-05: Use zipfile module, not zipimport, because it can list files
     import zipfile
-    z = zipfile.ZipFile(wwz_path)
+    z = zipfile.ZipFile(wwz_abs_path)
 
     start_response('200 OK', [HTML_UTF8, last_modified])
 
-    log('rel_path = %r', rel_path)
-    log('dir_prefix = %r', dir_prefix)
+    if DEBUG:
+      log('rel_path = %r', rel_path)
+      log('dir_prefix = %r', dir_prefix)
 
     # TODO:
-    # - add CSS in HTML head
-    #   - margin
-    #
     # - Only serve direct descendant dirs
     #   - Write unit tests for this calculation
-
     # - could have a breadcrumb here
 
     # Example:
@@ -288,7 +285,7 @@ class App(object):
     #   dir/foo.wwz/-wwz-index
     #
     #   wwz_rel_path = dir/foo.wwz in both cases
-    #   wwz_path = ~/www/dir/foo.wwz
+    #   wwz_abs_path = ~/www/dir/foo.wwz
     #
     #   rel_path = 
     #     -wwz-index
@@ -297,16 +294,17 @@ class App(object):
     #     ''
     #     spam/eggs
 
-    # Show foo.wwz/-wwz-status link at the root
-    if rel_path == '-wwz-index':
-      yield '<div style="text-align: right"><a href="..">-wwz-status</a></div>\n'
+    wwz_name = os.path.basename(wwz_abs_path)
+    title = '%s %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
+    yield _HtmlHeader(title, wwz_base_url + '/-wwz-css')
 
-    yield '<div style="text-align: right"><a href="..">Up</a></div>\n'
-    yield '\n'
+    yield '''
+    <div style="text-align: right">
+      <a href="..">Up</a> | <a href="%s">wwz Status</a>
+    </div>
+    ''' % (wwz_base_url + '/-wwz-status')
 
-    wwz_name = os.path.basename(wwz_path)
-    yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
-    yield '\n'
+    yield '<h1>%s</h1>\n' % title
 
     i = 0
     for name in z.namelist():
@@ -317,6 +315,9 @@ class App(object):
         i += 1
     if i == 0:
       yield '<i>(Empty directory)</i>'
+
+    yield '<hr/>'
+    yield _HtmlFooter()
 
   def _LogException(self, unique_id, request_uri, exc_type, e, tb):
     # For now, create a file for each exception.  Use a simple name and a
@@ -412,17 +413,18 @@ class App(object):
       log('DOCUMENT_ROOT = %r', doc_root)
 
     n = len(path_info)
-    wwz_rel_path = request_uri[1:-n]  # remove leading /
+    wwz_base_url = request_uri[:-n]   # /dir/foo.wwz
+    wwz_rel_path = wwz_base_url[1:]   # dir/foo.wwz
 
-    wwz_path = os.path.join(doc_root, wwz_rel_path)
+    wwz_abs_path = os.path.join(doc_root, wwz_rel_path)
 
     # Use the timestamp on the whole .zip file as the Last-Modified header.  If
     # ANY file in the .zip is modified, consider the whole thing modified.  I
     # think that is fine.
     try:
-      mtime = os.path.getmtime(wwz_path)
+      mtime = os.path.getmtime(wwz_abs_path)
     except OSError as e:
-      return NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
+      return NotFound(start_response, "Couldn't open wwz path %r", wwz_abs_path)
 
     # https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
     last_modified = (
@@ -442,8 +444,8 @@ class App(object):
     if rel_path == '-wwz-index' or rel_path.endswith('/-wwz-index'):
       dir_prefix = rel_path[:-len('wwz-index')]
 
-      return list(self.IndexListing(start_response, wwz_path, rel_path,
-                                    dir_prefix, last_modified))
+      return list(self.IndexListing(start_response, wwz_base_url, wwz_abs_path,
+                                    rel_path, dir_prefix, last_modified))
 
 
     tracer.Event('zip-begin')
@@ -454,14 +456,14 @@ class App(object):
     # want to concurrent create duplicate objects.
     with self.zip_files_lock: 
       try:
-        z = self.zip_files[wwz_path]
+        z = self.zip_files[wwz_abs_path]
       except KeyError:
         tracer.Event('open-zip')
         try:
-          z = zipimport.zipimporter(wwz_path)
+          z = zipimport.zipimporter(wwz_abs_path)
         except zipimport.ZipImportError as e:
-          return NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
-        self.zip_files[wwz_path] = z
+          return NotFound(start_response, "Couldn't open wwz path %r", wwz_abs_path)
+        self.zip_files[wwz_abs_path] = z
         tracer.Event('cached-zip')
 
     tracer.Event('zip-end')
