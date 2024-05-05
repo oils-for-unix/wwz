@@ -255,9 +255,9 @@ def _EntriesHtml(heading, entries):
   if len(entries):
     for entry in entries:
       escaped = cgi.escape(entry, quote=True)
-      yield '<a href="%s">%s</a>\n' % (escaped, escaped)
+      yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
   else:
-    yield '<i>(no entries)</i>\n'
+    yield '<p><i>(no entries)</i></p>\n'
 
   yield '\n'
 
@@ -373,12 +373,15 @@ class App(object):
     yield '<div class="breadcrumb">\n'
     i = 0
     for anchor, link in zip(page_data['anchors'], page_data['links']):
+      if i != 0:
+        yield '/\n'  # separator
+
       if link is None:
         yield '<span>%s</span>\n' % cgi.escape(anchor)
       else:
         yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True), cgi.escape(anchor))
-      if i != 0:
-        yield '/\n'  # separator
+      i += 1
+
     yield '</div>\n\n'
 
     for chunk in _EntriesHtml('Files', page_data['files']):
