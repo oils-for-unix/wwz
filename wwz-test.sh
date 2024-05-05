@@ -15,7 +15,7 @@ set -o pipefail
 set -o errexit
 
 make-testdata() {
-  mkdir -p _wwz/dir  # input data
+  mkdir -p _wwz/{dir,no-index}  # input data
   # .wwz is just a zip file?  Compression can be changed later?
 
   # I guess zip files have a magic number so it's OK to change it.
@@ -27,6 +27,7 @@ make-testdata() {
   echo 'wwz txt'     > _wwz/foo.txt
   echo 'wwz no extension'      > _wwz/dir/foo
   echo '<p>dir/index.html</p>' > _wwz/dir/index.html
+  echo 'no-index' > _wwz/no-index/file.txt
   tar --create --file _wwz/test.tar _wwz/*
 
   mkdir -p testdata
@@ -39,7 +40,6 @@ make-testdata() {
   popd
   unzip -l $out
 }
-
 
 run-wwz() {
   local doc_root=$1
@@ -56,12 +56,19 @@ run-wwz() {
     SERVER_PORT='80' \
     SERVER_PROTOCOL='HTTP/1.1' \
 
+  echo '---'
+  echo "path_info = $suffix"
+  echo
+
   mkdir -p _tmp/logs
   PYTHONPATH=_tmp/flup-1.0.3.dev-20110405 ./wwz.py _tmp/logs
+  echo
 }
 
 all() {
   rm -f _tmp/logs/*
+
+  # TODO: assert HTTP status, headers, body
 
   # Uncomment to test the logging ability.
   #export WWZ_REQUEST_LOG=1
@@ -79,9 +86,24 @@ all() {
   run-wwz $PWD /testdata/test.wwz /dir/
   run-wwz $PWD /testdata/test.wwz /test.tar
 
+  # Should print an index of files
+  run-wwz $PWD /testdata/test.wwz /wwz-index
+  run-wwz $PWD /testdata/test.wwz /dir/wwz-index
+
+  # Should redirect to wwz-index
+  run-wwz $PWD /testdata/test.wwz /no-index/
+
+  run-wwz $PWD /testdata/test.wwz /no-index/wwz-index
+
+  # Does flup catch this?  Doesn't look like it, so let's be paranoid and more
+  # We don't want people to inject headers
+  run-wwz $PWD /testdata/test.wwz $'/bad\nCookie: zzz/'
+
   # file not found in wwz
   run-wwz $PWD /testdata/test.wwz /not-a-file
-  # dir not found in wwz
+
+  # dir not found in wwz.  This will always redirect to wwz-index because of
+  # trailing slash, but meh that's fine
   run-wwz $PWD /testdata/test.wwz /not-a-dir/
 
   wc -l _tmp/logs/*

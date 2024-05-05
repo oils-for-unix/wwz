@@ -26,6 +26,7 @@ DOCUMENT_ROOT = /home/chubot/chubot.org
 
 import cgi
 import os
+import re
 import sys
 import time
 import threading
@@ -140,17 +141,52 @@ def log(msg, *args):
   print >>sys.stderr, msg
 
 
-def NotFound(start_response, msg, *args):
+HTML_UTF8 = ('Content-Type', 'text/html; charset=utf-8')
+
+
+def BadRequest(start_response, msg, *args):
   """
-  Usage: yield NotFound(...)
+  Usage: yield BadRequest('message %r', arg)
   """
   if args:
     msg = msg % args
-  start_response('404 Not Found', [('Content-Type', 'text/html; charset=utf-8')])
+  start_response('400 Bad Request', [HTML_UTF8])
+  return """\
+<h1>400 Bad Request</h1>
+<p>%s</p>
+""" % cgi.escape(msg)
+
+
+def NotFound(start_response, msg, *args):
+  """
+  Usage: yield NotFound('message %r', arg)
+  """
+  if args:
+    msg = msg % args
+  start_response('404 Not Found', [HTML_UTF8])
   return """\
 <h1>404 Not Found</h1>
 <p>%s</p>
 """ % cgi.escape(msg)
+
+
+# Don't print unsanitized request path to header, which would allow header
+# injection.
+# flup doesn't appear to take care of this!
+#
+# Be conservative.
+
+REDIRECT_RE = re.compile(r'^[a-zA-Z0-9_./-]*$')
+
+def Redirect(start_response, location):
+  """
+  Usage: yield Redirect(location)
+  """
+  start_response('302 Found', [HTML_UTF8, ('Location', location)])
+  return """\
+<h1>302 Found</h1>
+<p>%s</p>
+""" % cgi.escape(location)
 
 
 DEBUG = False
@@ -183,7 +219,7 @@ class App(object):
     Or only JSON?
 
     """
-    start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8')])
+    start_response('200 OK', [HTML_UTF8])
     yield """
 <!DOCTYPE html>
 <html>
@@ -315,10 +351,6 @@ class App(object):
     wwz_path = os.path.join(doc_root, wwz_rel_path)
 
     internal_path = path_info[1:]  # remove leading /
-    # The zipimporter has directory entries.  But we don't want to serve empty
-    # files!
-    if internal_path == '' or internal_path.endswith('/'):
-      internal_path += 'index.html'
 
     tracer.Event('zip-begin')
 
@@ -341,30 +373,55 @@ class App(object):
 
     tracer.Event('zip-end')
 
-    is_binary = False
-    if internal_path.endswith('.html'):
-      content_type = 'text/html'
-    elif internal_path.endswith('.css'):
-      content_type = 'text/css'
-    elif internal_path.endswith('.js'):
-      content_type = 'application/javascript'
-    elif internal_path.endswith('.json'):
-      content_type = 'application/json'
-    elif internal_path.endswith('.png'):
-      content_type = 'image/png'
-      is_binary = True
-    elif internal_path.endswith('.tar'):  # for _release/oil.tar
-      # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
-      content_type = 'application/x-tar'
-      is_binary = True
-    else:
-      content_type = 'text/plain'  # default
-
-    try:
-      body = z.get_data(internal_path)
-    except IOError as e:
-      yield NotFound(start_response, 'Path %r not found in wwz archive', internal_path)
+    if internal_path == 'wwz-index' or internal_path.endswith('/wwz-index'):
+      start_response('200 OK', [HTML_UTF8])
+      body = 'TODO - wwz-index'
+      yield body
       return
+
+    # It's a file
+    is_binary = False
+
+    # The zipimporter has directory entries.  But we don't want to serve empty
+    # files!
+    if internal_path == '' or internal_path.endswith('/'):
+      index_html = internal_path + 'index.html'
+      content_type = 'text/html'
+      try:
+        body = z.get_data(index_html)
+      except IOError as e:
+        # No index.html - redirect to wwz-index
+        if REDIRECT_RE.match(internal_path):
+          yield Redirect(start_response, internal_path + 'wwz-index')
+        else:
+          yield BadRequest(start_response, 'Invalid path %r' % internal_path)
+        return
+      # Keep going to serve the index.html body
+
+    else:
+      if internal_path.endswith('.html'):
+        content_type = 'text/html'
+      elif internal_path.endswith('.css'):
+        content_type = 'text/css'
+      elif internal_path.endswith('.js'):
+        content_type = 'application/javascript'
+      elif internal_path.endswith('.json'):
+        content_type = 'application/json'
+      elif internal_path.endswith('.png'):
+        content_type = 'image/png'
+        is_binary = True
+      elif internal_path.endswith('.tar'):  # for _release/oil.tar
+        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+        content_type = 'application/x-tar'
+        is_binary = True
+      else:
+        content_type = 'text/plain'  # default
+
+      try:
+        body = z.get_data(internal_path)
+      except IOError as e:
+        yield NotFound(start_response, 'Path %r not found in wwz archive', internal_path)
+        return
 
     tracer.Event('data-read')
 
