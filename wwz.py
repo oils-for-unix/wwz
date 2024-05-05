@@ -228,11 +228,16 @@ class App(object):
     Note: we could also have a JSON status page
     """
     start_response('200 OK', [HTML_UTF8])
-    yield _HtmlHeader('wwz Status', '-wwz-css')
+    title = 'Status of wwz process %d' % self.pid
+    yield _HtmlHeader(title, '-wwz-css')
 
-    yield '<h3>wwz Status</h3>\n'
+    yield '''
+    <div style="text-align: right">
+      <a href="..">Up</a> | <a href="%s">wwz Index</a>
+    </div>
+    ''' % '/-wwz-index'
 
-    yield '<p>PID = %d</p>' % self.pid
+    yield '<h1>%s</h1>\n' % title
 
     # By default, I'm seeing a thread pool of 5.  Does more concurrency help?
     th = threading.current_thread()
@@ -295,7 +300,7 @@ class App(object):
     #     spam/eggs
 
     wwz_name = os.path.basename(wwz_abs_path)
-    title = '%s &nbsp; / &nbsp; %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
+    title = 'Listing %s - %s' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
     yield _HtmlHeader(title, wwz_base_url + '/-wwz-css')
 
     yield '''
