@@ -1,0 +1,42 @@
+/* Mostly copied from Oils repo web/src-tree.css */
+
+body {
+  /* Arial seems thinner than the default sans-serif font */
+  font-family: Arial, sans-serif;
+  color: #444;  /* same as base.css */
+
+  /* We've designed with mobile in mind, so disable iPhone's special inflation
+   * algorithm - https://developer.mozilla.org/en-US/docs/Web/CSS/text-size-adjust
+   */
+  text-size-adjust: none;
+  /* 2023-09: essential for my phone! */
+  -webkit-text-size-adjust: none;
+}
+
+/* Arbitrary threshold of 1000 pixels */
+
+@media screen and (max-width: 1000px) {
+  body {
+    padding: 0 1em;  /* save space on small screen */
+  }
+}
+
+@media screen and (min-width: 1001px) {
+  body {
+    font-size: large;
+    padding: 0 3em;
+  }
+}
+
+/* "Files" and "Dirs" are same size, just bold */
+h1 {
+  font-size: 1.2em;
+}
+
+a:link {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+

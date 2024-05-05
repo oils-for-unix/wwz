@@ -115,15 +115,15 @@ cgi-test() {
   run-wwz $PWD /testdata/test.wwz /test.tar
 
   # Should print an index of files
-  run-wwz $PWD /testdata/test.wwz /wwz-index
-  run-wwz $PWD /testdata/test.wwz /dir/wwz-index
+  run-wwz $PWD /testdata/test.wwz /-wwz-index
+  run-wwz $PWD /testdata/test.wwz /dir/-wwz-index
 
   # Should redirect to wwz-index
   run-wwz $PWD /testdata/test.wwz /no-index/
 
-  run-wwz $PWD /testdata/test.wwz /no-index/wwz-index
+  run-wwz $PWD /testdata/test.wwz /no-index/-wwz-index
 
-  run-wwz $PWD /testdata/test.wwz /empty-dir/wwz-index
+  run-wwz $PWD /testdata/test.wwz /empty-dir/-wwz-index
 
   # Does flup catch this?  Doesn't look like it, so let's be paranoid and more
   # We don't want people to inject headers
@@ -136,9 +136,10 @@ cgi-test() {
   # trailing slash, but meh that's fine
   run-wwz $PWD /testdata/test.wwz /not-a-dir/
 
-  run-wwz $PWD /testdata/test.wwz /wwz-status
+  run-wwz $PWD /testdata/test.wwz /-wwz-status
+  run-wwz $PWD /testdata/test.wwz /-wwz-css
 
-  wc -l _tmp/logs/*
+  #wc -l _tmp/logs/*
 }
 
 all() {

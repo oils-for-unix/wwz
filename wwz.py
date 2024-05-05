@@ -126,30 +126,57 @@ def log(msg, *args):
 HTML_UTF8 = ('Content-Type', 'text/html; charset=utf-8')
 
 
+def _HtmlHeader(title, css_url):
+  return """
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>%s</title>
+    <link rel="stylesheet" type="text/css" href="%s" />
+  </head>
+  <body>
+""" % (cgi.escape(title), cgi.escape(css_url))
+
+
+def _HtmlFooter():
+  return """
+  </body>
+</html>
+"""
+
+
+
+def Ok(start_response, headers, body):
+  start_response('200 OK', headers)
+  return [body]
+
+
 def BadRequest(start_response, msg, *args):
   """
-  Usage: yield BadRequest('message %r', arg)
+  Usage: return BadRequest(start_response, 'message %r', arg)
   """
   if args:
     msg = msg % args
   start_response('400 Bad Request', [HTML_UTF8])
-  return """\
+  body = """\
 <h1>400 Bad Request</h1>
 <p>%s</p>
 """ % cgi.escape(msg)
+  return [body]
 
 
 def NotFound(start_response, msg, *args):
   """
-  Usage: yield NotFound('message %r', arg)
+  Usage: return NotFound(start_response, 'message %r', arg)
   """
   if args:
     msg = msg % args
   start_response('404 Not Found', [HTML_UTF8])
-  return """\
+  body = """\
 <h1>404 Not Found</h1>
 <p>%s</p>
 """ % cgi.escape(msg)
+  return [body]
 
 
 # Don't print unsanitized request path to header, which would allow header
@@ -162,13 +189,14 @@ REDIRECT_RE = re.compile(r'^[a-zA-Z0-9_./-]*$')
 
 def Redirect(start_response, location):
   """
-  Usage: yield Redirect(location)
+  Usage: return Redirect(start_response, 'http://example.com')
   """
   start_response('302 Found', [HTML_UTF8, ('Location', location)])
-  return """\
+  body = """\
 <h1>302 Found</h1>
 <p>%s</p>
 """ % cgi.escape(location)
+  return [body]
 
 
 DEBUG = False
@@ -200,14 +228,8 @@ class App(object):
     Note: we could also have a JSON status page
     """
     start_response('200 OK', [HTML_UTF8])
-    yield """
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>wwz Status</title>
-  </head>
-  <body>
-"""
+    css_base_url = 'TODO'
+    yield _HtmlHeader('wwz Status', '-wwz-css')
 
     yield '<h3>wwz Status</h3>\n'
 
@@ -238,11 +260,63 @@ class App(object):
     for k, v in sorted(environ.items()):
         yield '<tr><td>%s</td><td><code>%s</code></td></tr>\n' % (cgi.escape(str(k)), cgi.escape(str(v)))
     yield '</table>'
-    yield """
-    <hr/>
-  </body>
-</html>
-"""
+    yield '<hr/>'
+    yield _HtmlFooter()
+
+  def IndexListing(self, start_response, wwz_path, rel_path, dir_prefix, last_modified):
+    # 2024-05: Use zipfile module, not zipimport, because it can list files
+    import zipfile
+    z = zipfile.ZipFile(wwz_path)
+
+    start_response('200 OK', [HTML_UTF8, last_modified])
+
+    log('rel_path = %r', rel_path)
+    log('dir_prefix = %r', dir_prefix)
+
+    # TODO:
+    # - add CSS in HTML head
+    #   - margin
+    #
+    # - Only serve direct descendant dirs
+    #   - Write unit tests for this calculation
+
+    # - could have a breadcrumb here
+
+    # Example:
+    #
+    #   dir/foo.wwz/spam/eggs/-wwz-index
+    #   dir/foo.wwz/-wwz-index
+    #
+    #   wwz_rel_path = dir/foo.wwz in both cases
+    #   wwz_path = ~/www/dir/foo.wwz
+    #
+    #   rel_path = 
+    #     -wwz-index
+    #     spam/eggs/-wwz-index
+    #   dir_prefix
+    #     ''
+    #     spam/eggs
+
+    # Show foo.wwz/-wwz-status link at the root
+    if rel_path == '-wwz-index':
+      yield '<div style="text-align: right"><a href="..">-wwz-status</a></div>\n'
+
+    yield '<div style="text-align: right"><a href="..">Up</a></div>\n'
+    yield '\n'
+
+    wwz_name = os.path.basename(wwz_path)
+    yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
+    yield '\n'
+
+    i = 0
+    for name in z.namelist():
+      if name.startswith(dir_prefix) and name != dir_prefix:
+        zip_rel_path = name[len(dir_prefix):]
+        escaped = cgi.escape(zip_rel_path, quote=True)
+        yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
+        i += 1
+    if i == 0:
+      yield '<i>(Empty directory)</i>'
 
   def _LogException(self, unique_id, request_uri, exc_type, e, tb):
     # For now, create a file for each exception.  Use a simple name and a
@@ -305,29 +379,29 @@ class App(object):
       raise
 
   def Respond(self, environ, start_response, tracer):
-    """Called from multiple threads."""
+    """Produce HTTP response.  Called from multiple threads.
 
-    # Example request:
+    Example:
 
-    # Given the rewrite rule in .htaccess, and URL
-    # http://chubot.org/wwz-test/foo.wwz/a/b/c 
+    Given the rewrite rule in .htaccess, and URL
 
-    # we get CGI vars:
+        http://chubot.org/wwz-test/foo.wwz/a/b/c 
 
-    # PATH_INFO = /a/b/c
-    # REQUEST_URI = /wwz-test/foo.wwz/a/b/c
-    # DOCUMENT_ROOT = /home/chubot/chubot.org
+    We get CGI vars:
 
+        PATH_INFO = /a/b/c
+        REQUEST_URI = /wwz-test/foo.wwz/a/b/c
+        DOCUMENT_ROOT = /home/chubot/chubot.org
+    """
     request_uri = environ['REQUEST_URI']
     path_info = environ.get('PATH_INFO', '')
 
     # PATH_INFO may be unset if you visit http://example.com/cgi-bin/wwz.py with
     # no trailng path.
     if not path_info:
-      for chunk in self.StatusPage(environ, start_response):
-        yield chunk
+      chunks = list(self.StatusPage(environ, start_response))
       tracer.Event('StatusPage-end')
-      return
+      return chunks
 
     doc_root = environ['DOCUMENT_ROOT']
 
@@ -348,77 +422,29 @@ class App(object):
     try:
       mtime = os.path.getmtime(wwz_path)
     except OSError as e:
-      yield NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
-      return
+      return NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
 
     # https://stackoverflow.com/questions/225086/rfc-1123-date-representation-in-python
-    last_modified = ('Last-Modified', formatdate(mtime, localtime=False, usegmt=True))
+    last_modified = (
+        'Last-Modified', formatdate(mtime, localtime=False, usegmt=True))
 
     rel_path = path_info[1:]  # remove leading /
 
-    # 2024-05: Use zipfile module, not zipimport, because it can list files
-    if rel_path == 'wwz-index' or rel_path.endswith('/wwz-index'):
-      import zipfile
+    if rel_path == '-wwz-css':
+      with open('wwz.css') as f:
+        body = f.read()
+      headers = [('Content-Type', 'text/css')]
+      return Ok(start_response, headers, body)
 
-      z = zipfile.ZipFile(wwz_path)
+    if rel_path == '-wwz-status':
+      return list(self.StatusPage(environ, start_response))
+
+    if rel_path == '-wwz-index' or rel_path.endswith('/-wwz-index'):
       dir_prefix = rel_path[:-len('wwz-index')]
 
-      start_response('200 OK', [HTML_UTF8, last_modified])
+      return list(self.IndexListing(start_response, wwz_path, rel_path,
+                                    dir_prefix, last_modified))
 
-      log('rel_path = %r', rel_path)
-      log('dir_prefix = %r', dir_prefix)
-
-      # TODO:
-      # - could have a breadcrumb here
-      # - add CSS in HTML head
-      #   - margin
-      # - Only serve direct descendant dirs
-      #
-      # - Write unit tests for this calculation
-      # - refactor away from 'yield' style -- just return the whole damn page I
-      #   think
-      #   - refactor 302, 400, 404, 202, responses together
-
-      # - Rename rel_path and path_info
-      #   - these are derived from REQUEST_URI and PATH_INFO
-      #   - wwz_path, relative_path (relative to wwz)
-      #
-      # Example:
-      #   dir/foo.wwz/spam/eggs/wwz-index
-      #   dir/foo.wwz/wwz-index
-      #
-      #   wwz_rel_path = dir/foo.wwz in both cases
-      #   wwz_path = ~/www/dir/foo.wwz
-      #   rel_path = 
-      #     wwz-index
-      #     spam/eggs/wwz-index
-      #   dir_prefix
-      #     ''
-      #     spam/eggs
-
-      yield '<div style="text-align: right"><a href="..">Up</a></div>\n'
-      yield '\n'
-
-      wwz_name = os.path.basename(wwz_path)
-      yield '<h1>%s &nbsp;&nbsp; %s</h1>\n' % (cgi.escape(wwz_name), cgi.escape(dir_prefix))
-      yield '\n'
-
-      i = 0
-      for name in z.namelist():
-        if name.startswith(dir_prefix) and name != dir_prefix:
-          rel_path = name[len(dir_prefix):]
-          escaped = cgi.escape(rel_path, quote=True)
-          yield '<a href="%s">%s</a> <br/>\n' % (escaped, escaped)
-          i += 1
-      if i == 0:
-        yield '<i>(Empty directory)</i>'
-
-      return
-
-    if rel_path == 'wwz-status':
-      for chunk in self.StatusPage(environ, start_response):
-        yield chunk
-      return
 
     tracer.Event('zip-begin')
 
@@ -434,8 +460,7 @@ class App(object):
         try:
           z = zipimport.zipimporter(wwz_path)
         except zipimport.ZipImportError as e:
-          yield NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
-          return
+          return NotFound(start_response, "Couldn't open wwz path %r", wwz_path)
         self.zip_files[wwz_path] = z
         tracer.Event('cached-zip')
 
@@ -448,42 +473,40 @@ class App(object):
     # files!
     if rel_path == '' or rel_path.endswith('/'):
       index_html = rel_path + 'index.html'
-      content_type = 'text/html'
       try:
         body = z.get_data(index_html)
       except IOError as e:
-        # No index.html - redirect to wwz-index (RELATIVE URL)
+        # No index.html - redirect to -wwz-index (RELATIVE URL)
         if REDIRECT_RE.match(rel_path):
-          yield Redirect(start_response, 'wwz-index')
+          return Redirect(start_response, '-wwz-index')
         else:
-          yield BadRequest(start_response, 'Invalid path %r' % rel_path)
-        return
-      # Keep going to serve the index.html body
+          return BadRequest(start_response, 'Invalid path %r' % rel_path)
 
+      headers = [HTML_UTF8, last_modified]
+      return Ok(start_response, headers, body)
+
+    if rel_path.endswith('.html'):
+      content_type = 'text/html'
+    elif rel_path.endswith('.css'):
+      content_type = 'text/css'
+    elif rel_path.endswith('.js'):
+      content_type = 'application/javascript'
+    elif rel_path.endswith('.json'):
+      content_type = 'application/json'
+    elif rel_path.endswith('.png'):
+      content_type = 'image/png'
+      is_binary = True
+    elif rel_path.endswith('.tar'):  # for _release/oil.tar
+      # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+      content_type = 'application/x-tar'
+      is_binary = True
     else:
-      if rel_path.endswith('.html'):
-        content_type = 'text/html'
-      elif rel_path.endswith('.css'):
-        content_type = 'text/css'
-      elif rel_path.endswith('.js'):
-        content_type = 'application/javascript'
-      elif rel_path.endswith('.json'):
-        content_type = 'application/json'
-      elif rel_path.endswith('.png'):
-        content_type = 'image/png'
-        is_binary = True
-      elif rel_path.endswith('.tar'):  # for _release/oil.tar
-        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
-        content_type = 'application/x-tar'
-        is_binary = True
-      else:
-        content_type = 'text/plain'  # default
+      content_type = 'text/plain'  # default
 
-      try:
-        body = z.get_data(rel_path)
-      except IOError as e:
-        yield NotFound(start_response, 'Path %r not found in wwz archive', rel_path)
-        return
+    try:
+      body = z.get_data(rel_path)
+    except IOError as e:
+      return NotFound(start_response, 'Path %r not found in wwz archive', rel_path)
 
     tracer.Event('data-read')
 
@@ -491,21 +514,17 @@ class App(object):
     if not is_binary:
       content_type = '%s; charset=utf-8' % content_type
 
-    headers = [
-        ('Content-Type', content_type),
-        last_modified,
-    ]
-
     # Dreamhost does send ETag.
     # Semi-unique hash gets perserved.  TODO: Bake an md5sum into .zip metadata?
     # Does this make the browser send conditional GETs?  Do crwalers ever use
     # this?
     #print 'ETag: %s' % hash(rel_path)
+    headers = [('Content-Type', content_type), last_modified]
 
-    start_response('200 OK', headers)
-    yield body
-
+    chunks = Ok(start_response, headers, body)
     tracer.Event('request-end')
+
+    return chunks
 
 
 def main(argv):
