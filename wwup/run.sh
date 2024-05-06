@@ -19,21 +19,22 @@ readonly URL=http://travis-ci.oilshell.org/wwup.cgi
 
 upload-one() {
   curl \
+    --include \
     --form 'payload-type=osh-runtime' \
-    --form 'zip=@_tmp/one.zip' \
+    --form 'wwz=@_tmp/one.wwz' \
     $URL
 }
 
 upload-bad-type() {
   # missing
   curl \
-    --form 'zip=@_tmp/one.zip' \
+    --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
   # bad
   curl \
-    --form 'payload-type=zzz' \
-    --form 'zip=@_tmp/one.zip' \
+    --form 'payload-type=yyy' \
+    --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
 
@@ -43,41 +44,54 @@ upload-bad-zip() {
     --form 'payload-type=osh-runtime' \
     http://travis-ci.oilshell.org/wwup.cgi
 
-  # bad
+  # not a zip file
   curl \
     --form 'payload-type=osh-runtime' \
-    --form 'zip=@README.md' \
+    --form 'wwz=@README.md' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
 
-upload-many() {
-  # The [] thing is what the browser sends?
+upload-disallowed() {
+  # invalid file extension
   curl \
-    --form 'files[]=@README.md' \
-    --form 'files[]=@hello.cgi' \
-    --form 'files2=@hello.cgi' \
-    --form 'files2=@run.sh' \
+    --form 'payload-type=osh-runtime' \
+    --form 'wwz=@_tmp/bad.wwz' \
+    http://travis-ci.oilshell.org/wwup.cgi
+
+  curl \
+    --form 'payload-type=really-small' \
+    --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
 
 make-zips() {
-  mkdir -p _tmp/{osh-runtime,shell-id,host-id,bad}
+  rm -r -f -v _tmp/*
+  mkdir -p _tmp/{osh-runtime,shell-id,host-id,bad,other}
 
   for file in \
     _tmp/osh-runtime/aa.tsv \
     _tmp/shell-id/bb.txt \
     _tmp/host-id/cc.txt \
-    _tmp/host-id/bad.js \
-    _tmp/bad/zz.txt;
+    _tmp/bad/bad.js \
+    _tmp/other/zz.txt;
   do
      echo x > $file
   done
 
-  rm -f -v _tmp/one.zip
+  local wwz=_tmp/one.wwz
+  rm -f -v $wwz
 
-  zip _tmp/one.zip _tmp/{osh-runtime,shell-id,host-id,bad}/*
+  zip $wwz _tmp/{osh-runtime,shell-id,host-id}/*
+  unzip -l $wwz
+  echo
 
-  unzip -l _tmp/one.zip
+  local bad=_tmp/bad.wwz
+  rm -f -v $bad
+
+  cp $wwz $bad
+  zip $bad _tmp/bad/*
+  unzip -l $bad
+  echo
 }
 
 local-test() {
@@ -97,6 +111,11 @@ demo() {
   echo status=$?
   echo
 
+  upload-disallowed
+  echo status=$?
+  echo
+
+  set -x
   upload-one
   echo status=$?
   echo
