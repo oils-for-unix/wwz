@@ -20,21 +20,19 @@ class WwzTest(unittest.TestCase):
   def testMakeListing(self):
     print(wwz)
 
-    rel_paths = ['file.txt', 'dir/file.txt']
-    p = wwz._MakeListing('foo.wwz', rel_paths, '')
-    print(pformat(p, indent=2))
+    CASES = [
+        (['file.txt', 'dir/file.txt'], ''),
+        # list inside
+        (['file.txt', 'dir/file.txt'], 'dir/'),
 
-    rel_paths = ['file.txt', 'dir/file.txt']
-    p = wwz._MakeListing('foo.wwz', rel_paths, 'dir/')
-    print(pformat(p, indent=2))
+        (['file.txt', 'dir/empty-dir/'], ''),
+        (['file.txt', 'dir/sub1/z', 'dir/sub1/x', 'dir/sub2/'], 'dir/'),
+        ]
 
-    rel_paths = ['file.txt', 'dir/empty-dir']
-    p = wwz._MakeListing('foo.wwz', rel_paths, '')
-    print(pformat(p, indent=2))
-
-    rel_paths = ['file.txt', 'dir/sub1/z', 'dir/sub1/x', 'dir/sub2/']
-    p = wwz._MakeListing('foo.wwz', rel_paths, 'dir/')
-    print(pformat(p, indent=2))
+    for rel_paths, dir_prefix in CASES:
+      page_data = {'files': [], 'dirs': []}
+      wwz._MakeListing(page_data, rel_paths, dir_prefix)
+      print(pformat(page_data, indent=2))
 
 
 if __name__ == '__main__':

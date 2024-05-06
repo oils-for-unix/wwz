@@ -204,12 +204,7 @@ DEBUG = False
 #DEBUG = True
 
 
-def _MakeListing(wwz_name, rel_paths, dir_prefix):
-
-  # anchors and urls is the breadcrumb
-  page_data = {
-    'files': [], 'dirs': [], 'anchors': [], 'urls': [], 'index_html': False
-    }
+def _MakeListing(page_data, rel_paths, dir_prefix):
 
   dirs = set()
 
@@ -240,19 +235,60 @@ def _MakeListing(wwz_name, rel_paths, dir_prefix):
 
   page_data['dirs'].extend(sorted(dirs))
 
+
+def _MakeCrumb2(crumb2, wwz_name, dir_prefix):
+
   parts = [p for p in dir_prefix.split('/') if p]
   anchors = [wwz_name] + parts
 
-  links = [None] * len(anchors)
-  n = len(anchors)
-  for i in xrange(n-1):
-    dots = ['..'] * (n - i - 1)
-    links[i] = '/'.join(dots) + '/-wwz-index'
+  urls = [None] * len(anchors)
+  n_inside = len(anchors)
+  for i in xrange(n_inside - 1):
+    dots = ['..'] * (n_inside - i - 1)
+    urls[i] = '/'.join(dots) + '/-wwz-index'
 
-  page_data['anchors'] = anchors
-  page_data['links'] = links
+  crumb2['anchors'] = anchors
+  crumb2['urls'] = urls
 
-  return page_data
+  return n_inside
+
+
+def _MakeCrumb1(crumb1, n_inside, http_host, wwz_abs_path):
+
+  #
+  # Now go even further back
+  #
+
+  parts = [p for p in wwz_abs_path.split('/') if p]
+  parts.pop()  # remove .wwz 
+
+  anchors = [http_host] + parts
+
+  urls = [None] * len(anchors)
+  n_before = len(anchors)
+  for i in xrange(n_before):
+    dots = ['..'] * (n_inside + n_before - i - 1)
+    urls[i] = '/'.join(dots) + '/'  # use web server index
+
+  crumb1['anchors'] = anchors
+  crumb1['urls'] = urls
+
+
+def _Breadcrumb(crumb):
+  yield '<div class="breadcrumb">\n'
+  i = 0
+  for anchor, link in zip(crumb['anchors'], crumb['urls']):
+    if i != 0:
+      yield '/\n'  # separator
+
+    if link is None:
+      yield '<span>%s</span>\n' % cgi.escape(anchor)
+    else:
+      yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True),
+                                       cgi.escape(anchor))
+    i += 1
+
+  yield '</div>\n\n'
 
 
 def _EntriesHtml(heading, entries, url_suffix=''):
@@ -332,8 +368,12 @@ class App(object):
     yield '<hr/>'
     yield _HtmlFooter()
 
-  def IndexListing(self, start_response, wwz_base_url, wwz_abs_path, rel_path,
-                   dir_prefix, last_modified):
+  def IndexListing(self, start_response, http_host, wwz_base_url, wwz_abs_path,
+                   rel_path, dir_prefix, last_modified):
+    """
+    wwz_base_url: /dir/foo.wwz
+    wwz_abspath: /home/andy/dir/foo.wwz
+    """
     # 2024-05: Use zipfile module, not zipimport, because it can list files
     import zipfile
     z = zipfile.ZipFile(wwz_abs_path)
@@ -365,32 +405,38 @@ class App(object):
 
     yield '''
     <div style="text-align: right">
-      <a href="..">Up</a> | <a href="%s">wwz Status</a>
+      <a href="%s">wwz Status</a>
     </div>
     ''' % (wwz_base_url + '/-wwz-status')
 
-    rel_paths = z.namelist()
-    page_data = _MakeListing(wwz_name, rel_paths, dir_prefix)
+    page_data = {
+      'files': [], 'dirs': [], 
+
+      # breadcrumb inside wwz
+      'crumb2': {'anchors': [], 'urls': []} ,
+      # then a breadcrumb UP TO wwz
+      'crumb1': {'anchors': [], 'urls': []} ,
+
+      # is there an index.html for this dir?
+      'index_html': False
+      }
+
+    _MakeListing(page_data, z.namelist(), dir_prefix)
+
+    n_inside = _MakeCrumb2(page_data['crumb2'], wwz_name, dir_prefix)
+
+    _MakeCrumb1(page_data['crumb1'], n_inside, http_host, wwz_abs_path)
 
     if DEBUG:
       from pprint import pformat
       log('%s', pformat(page_data))
       log('')
 
-    yield '<div class="breadcrumb">\n'
-    i = 0
-    for anchor, link in zip(page_data['anchors'], page_data['links']):
-      if i != 0:
-        yield '/\n'  # separator
+    for chunk in _Breadcrumb(page_data['crumb1']):
+      yield chunk
 
-      if link is None:
-        yield '<span>%s</span>\n' % cgi.escape(anchor)
-      else:
-        yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True),
-                                         cgi.escape(anchor))
-      i += 1
-
-    yield '</div>\n\n'
+    for chunk in _Breadcrumb(page_data['crumb2']):
+      yield chunk
 
     for chunk in _EntriesHtml('Files', page_data['files']):
       yield chunk
@@ -527,8 +573,10 @@ class App(object):
     if rel_path == '-wwz-index' or rel_path.endswith('/-wwz-index'):
       dir_prefix = rel_path[:-len('-wwz-index')]
 
-      return list(self.IndexListing(start_response, wwz_base_url, wwz_abs_path,
-                                    rel_path, dir_prefix, last_modified))
+      return list(self.IndexListing(
+        start_response, environ.get('HTTP_HOST', 'HOST'),
+        wwz_base_url, wwz_abs_path,
+        rel_path, dir_prefix, last_modified))
 
 
     tracer.Event('zip-begin')
