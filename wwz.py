@@ -132,6 +132,7 @@ def _HtmlHeader(title, css_url):
 <!DOCTYPE html>
 <html>
   <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>%s</title>
     <link rel="stylesheet" type="text/css" href="%s" />
   </head>
@@ -452,7 +453,7 @@ class App(object):
 
     if page_data['index_html']:
       yield '<hr />\n'
-      yield '<p><a href="index.html">View index.html</a></p>\n'
+      yield '<p><a href=".">View index.html</a></p>\n'
 
     yield _HtmlFooter()
 
