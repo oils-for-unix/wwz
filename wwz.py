@@ -253,30 +253,16 @@ def _MakeCrumb2(crumb2, wwz_name, dir_prefix):
   return n_inside
 
 
-def _MakeCrumb1(crumb1, n_inside, http_host, wwz_abs_path):
+def _MakeCrumb1(crumb1, n_inside, http_host, wwz_base_url):
 
   #
   # Now go even further back
   #
 
-  parts = [p for p in wwz_abs_path.split('/') if p]
+  parts = [p for p in wwz_base_url.split('/') if p]
   parts.pop()  # remove .wwz 
 
-  # Truncate /home/travis_admin/travis-ci.oilshell.org etc.
-  # TODO: need test coverage for this
-  try:
-    h = parts.index(http_host)
-  except ValueError:
-    pass
-  else:
-    # 3 or 4 parts for Dreamhost:
-
-    # travis-ci.oilshell.org / github-jobs / 6893 /
-    # travis-ci.oilshell.org / srht-jobs / X /
-    # oilshell.org / release / 0.21.0 / test /
-    parts = parts[h:]
-
-  anchors = parts
+  anchors = [http_host] + parts
 
   urls = [None] * len(anchors)
   n_before = len(anchors)
@@ -382,7 +368,7 @@ class App(object):
     for k, v in sorted(environ.items()):
         yield '<tr><td>%s</td><td><code>%s</code></td></tr>\n' % (cgi.escape(str(k)), cgi.escape(str(v)))
     yield '</table>'
-    yield '<hr/>'
+    yield '<hr/>\n'
     yield _HtmlFooter()
 
   def IndexListing(self, start_response, http_host, wwz_base_url, wwz_abs_path,
@@ -406,6 +392,7 @@ class App(object):
     #   dir/foo.wwz/-wwz-index
     #
     # Then in both cases:
+    #   wwz_base_url = /dir/foo.wwz
     #   wwz_abs_path = ~/www/dir/foo.wwz
     #
     #   rel_path = 
@@ -442,7 +429,7 @@ class App(object):
 
     n_inside = _MakeCrumb2(page_data['crumb2'], wwz_name, dir_prefix)
 
-    _MakeCrumb1(page_data['crumb1'], n_inside, http_host, wwz_abs_path)
+    _MakeCrumb1(page_data['crumb1'], n_inside, http_host, wwz_base_url)
 
     if DEBUG:
       from pprint import pformat
@@ -452,7 +439,7 @@ class App(object):
     for chunk in _Breadcrumb(page_data['crumb1'], last_slash=True):
       yield chunk
 
-    yield '<hr/>'
+    yield '<hr/>\n'
 
     for chunk in _Breadcrumb(page_data['crumb2']):
       yield chunk
