@@ -76,9 +76,14 @@ PAYLOADS = {
     'max_bytes': 5 * 1000 * 1000,
   },
 
-  'really-small': {
+  'only-2-files': {
     'max_files': 2,
     'max_bytes': 1000,
+  },
+
+  'only-3-bytes': {
+    'max_files': 5,
+    'max_bytes': 3,
   },
 
   # Is this one policy, or multiple policies?
@@ -127,6 +132,15 @@ def Upload(extract_base_dir):
 
   temp_file = wwz_value.file  # get the file handle
 
+  temp_file.seek(0, os.SEEK_END)
+  num_bytes = temp_file.tell()
+  max_bytes = policy['max_bytes']
+  if num_bytes > max_bytes:
+      raise RuntimeError('wwz is %d bytes, but only %d are allowed' %
+          (num_bytes, max_bytes))
+
+  temp_file.seek(0)
+
   try:
     z = zipfile.ZipFile(temp_file)
   except zipfile.BadZipfile as e:
@@ -141,6 +155,17 @@ def Upload(extract_base_dir):
           (num_files, max_files))
 
   for rel_path in names:
+    # Can't have absolute paths
+    if rel_path.startswith('/'):
+      raise RuntimeError('Invalid path %r' % rel_path)
+
+    # Path traversal check
+    # normpath turns foo/bar/../../.. into '..'
+    norm_path = os.path.normpath(rel_path)
+    if norm_path.startswith('.'):
+      raise RuntimeError('Invalid path %r' % rel_path)
+
+    # Executable content check, e.g. disallow .html .css .jss
     _, ext = os.path.splitext(rel_path)
     if ext not in ALLOWED_EXTENSIONS:
       raise RuntimeError('File %r has an invalid extension' % rel_path)
@@ -148,7 +173,7 @@ def Upload(extract_base_dir):
   # Important: seek back to the beginning, because ZipFile read it!
   temp_file.seek(0)
 
-  out_path = 'test.wwz'
+  out_path = wwz_value.filename
   with open(out_path, 'w') as out_f:
     while True:
       chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
@@ -158,7 +183,6 @@ def Upload(extract_base_dir):
 
   out_f.close()
   temp_file.close()
-
 
   print('Status: 200 OK')
   print('Content-Type: text/plain; charset=utf-8')

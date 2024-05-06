@@ -74,8 +74,19 @@ upload-disallowed() {
     --form 'wwz=@_tmp/bad.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
+  # dir traversal
   curl \
-    --form 'payload-type=really-small' \
+    --form 'payload-type=osh-runtime' \
+    --form 'wwz=@_tmp/bad2.wwz' \
+    http://travis-ci.oilshell.org/wwup.cgi
+
+  curl \
+    --form 'payload-type=only-2-files' \
+    --form 'wwz=@_tmp/one.wwz' \
+    http://travis-ci.oilshell.org/wwup.cgi
+
+  curl \
+    --form 'payload-type=only-3-bytes' \
     --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
@@ -97,7 +108,8 @@ make-zips() {
   local wwz=_tmp/one.wwz
   rm -f -v $wwz
 
-  zip $wwz _tmp/{osh-runtime,shell-id,host-id}/*
+  zip $wwz _tmp/{osh-runtime,shell-id,host-id}/* 
+
   unzip -l $wwz
   echo
 
@@ -107,6 +119,17 @@ make-zips() {
   cp $wwz $bad
   zip $bad _tmp/bad/*
   unzip -l $bad
+  echo
+
+  # - Python 2.7.4 extractall() has a check for dir traversal
+  # - unzip on my Linux box does too
+  # - But we can still check for this
+  local bad2=_tmp/bad2.wwz
+  rm -f -v $bad2
+
+  cp $wwz $bad2
+  zip $bad2 ../testdata/zip-dir-traversal.txt
+  unzip -l $bad2
   echo
 }
 
