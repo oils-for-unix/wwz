@@ -10,6 +10,12 @@ set -o errexit
 readonly HOST=travis-ci.oilshell.org
 readonly DIR=travis-ci.oilshell.org
 
+banner() {
+  echo ---
+  echo "$@"
+  echo
+}
+
 setup() {
   # /U/ for for 'untrusted user uploads'
   ssh $HOST "mkdir -v -p $DIR/U"
@@ -39,15 +45,25 @@ upload-bad-type() {
 }
 
 upload-bad-zip() {
-  # missing
+  banner 'Missing wwz field'
   curl \
     --form 'payload-type=osh-runtime' \
     http://travis-ci.oilshell.org/wwup.cgi
 
-  # not a zip file
+  # --trace-ascii - shows the POST body
+  banner 'wwz field is a string rather than a file'
+  #curl --trace-ascii - \
   curl \
     --form 'payload-type=osh-runtime' \
-    --form 'wwz=@README.md' \
+    --form 'wwz=some-string' \
+    http://travis-ci.oilshell.org/wwup.cgi
+
+  echo x > _tmp/notzip
+  banner 'wwz field is not a zip file'
+  #curl --trace-ascii - \
+  curl \
+    --form 'payload-type=osh-runtime' \
+    --form 'wwz=@_tmp/notzip' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
 
