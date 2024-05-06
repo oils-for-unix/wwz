@@ -262,7 +262,21 @@ def _MakeCrumb1(crumb1, n_inside, http_host, wwz_abs_path):
   parts = [p for p in wwz_abs_path.split('/') if p]
   parts.pop()  # remove .wwz 
 
-  anchors = [http_host] + parts
+  # Truncate /home/travis_admin/travis-ci.oilshell.org etc.
+  # TODO: need test coverage for this
+  try:
+    h = parts.index(http_host)
+  except ValueError:
+    pass
+  else:
+    # 3 or 4 parts for Dreamhost:
+
+    # travis-ci.oilshell.org / github-jobs / 6893 /
+    # travis-ci.oilshell.org / srht-jobs / X /
+    # oilshell.org / release / 0.21.0 / test /
+    parts = parts[h:]
+
+  anchors = parts
 
   urls = [None] * len(anchors)
   n_before = len(anchors)
@@ -434,6 +448,7 @@ class App(object):
 
     for chunk in _Breadcrumb(page_data['crumb1']):
       yield chunk
+    yield '/\n'  # extra separator
 
     for chunk in _Breadcrumb(page_data['crumb2']):
       yield chunk
