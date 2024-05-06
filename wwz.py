@@ -288,7 +288,7 @@ def _MakeCrumb1(crumb1, n_inside, http_host, wwz_abs_path):
   crumb1['urls'] = urls
 
 
-def _Breadcrumb(crumb):
+def _Breadcrumb(crumb, last_slash=False):
   yield '<div class="breadcrumb">\n'
   i = 0
   for anchor, link in zip(crumb['anchors'], crumb['urls']):
@@ -301,6 +301,9 @@ def _Breadcrumb(crumb):
       yield '<a href="%s">%s</a>\n' % (cgi.escape(link, quote=True),
                                        cgi.escape(anchor))
     i += 1
+
+  if last_slash:
+    yield '/\n'
 
   yield '</div>\n\n'
 
@@ -446,9 +449,10 @@ class App(object):
       log('%s', pformat(page_data))
       log('')
 
-    for chunk in _Breadcrumb(page_data['crumb1']):
+    for chunk in _Breadcrumb(page_data['crumb1'], last_slash=True):
       yield chunk
-    yield '/\n'  # extra separator
+
+    yield '<hr/>'
 
     for chunk in _Breadcrumb(page_data['crumb2']):
       yield chunk
