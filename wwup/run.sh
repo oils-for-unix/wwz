@@ -17,8 +17,10 @@ banner() {
 }
 
 setup() {
+  # Matches params in wwup.cgi
+
   # /uuu/ for for 'untrusted user uploads'
-  ssh $HOST "mkdir -v -p $DIR/uuu"
+  ssh $HOST "mkdir -v -p $DIR/uuu $DIR/tmp-upload"
 }
 
 readonly URL=http://travis-ci.oilshell.org/wwup.cgi
@@ -168,6 +170,18 @@ local-test() {
   REQUEST_METHOD=POST ./wwup.cgi < /dev/null
 }
 
+inherit-test() {
+  scp inherit-test.cgi $HOST:$DIR
+
+  set -x
+  curl http://travis-ci.oilshell.org/inherit-test.cgi
+  echo
+
+  #curl --trace-ascii - \
+  curl \
+    --form foo=bar http://travis-ci.oilshell.org/inherit-test.cgi
+}
+
 demo() {
   scp wwup.{py,cgi} $HOST:$DIR
 
@@ -179,6 +193,8 @@ demo() {
   upload-bad-type
   echo status=$?
   echo
+
+  #return
 
   upload-bad-subdir
   echo status=$?

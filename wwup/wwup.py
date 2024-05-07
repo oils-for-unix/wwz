@@ -42,6 +42,7 @@ import cStringIO
 import errno
 import os
 import sys
+import tempfile
 import zipfile
 
 # Hard-coded payload validation:
@@ -87,10 +88,58 @@ PAYLOADS = {
 }
 
 
-#cgi.test()
+class MyFieldStorage(cgi.FieldStorage):
+  """To atomically rename the temp file to a real file.
 
-def Upload(extract_base_dir):
-  form = cgi.FieldStorage()
+  We make it read-only, so it can't be overwritten.
+  """
+  def __init__(self, tmp_dir, fp, environ):
+    cgi.FieldStorage.__init__(self, fp=fp, environ=environ)
+    #self.tmp_dir = tmp_dir
+
+  #def ZZ_make_file(self, binary=None):
+  #  self.tmp_fd, self.tmp_path = tempfile.mkstemp(prefix='wwup-',
+  #      dir=self.tmp_dir)
+
+  # TODO: you can never overwrite a file?  You can only create new files.  That
+  # means we should use $TIMESTAMP.$client_name.wwz?
+
+  # - Or override cgi make_file() in FieldStorage
+  #   - the default tempfile.TemporaryFile() is not good enough for us, because
+  #   want to rename
+  #   - however we have to make sure we've on the same file system
+  #   - yeah we had this bug for analytics I think
+  #   - the tempfile
+  #
+  # use os.mkstemp('tmp')
+  # So then we need dest_base_dir and tmp_dir as params
+
+  # - Write to temp file
+  # - close it
+  # - make it read-only
+  # - attempt to atomically rename
+  #   - if it fails, then delete it from /tmp - say "file already exists"
+  #   - otherwise you have saved a unique file
+  #
+  # - need a unit test for this
+
+  #   - we can generate our own temp name
+  #   - then atomically rename -- but this means the last one wins?
+  #   - can we chmod() to be read-only?  and then
+
+def Upload(dest_base_dir, tmp_dir):
+  # Dumps info
+  #cgi.test()
+
+  # for logging
+  if 0:
+    print('Status: 200 OK')
+    print('Content-Type: text/plain; charset=utf-8')
+    print('')
+    print('OK')
+
+  #form = MyFieldStorage(tmp_dir, sys.stdin, os.environ)
+  form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
 
   # Form field examples:
   # - payload-type=osh-runtime
@@ -111,12 +160,6 @@ def Upload(extract_base_dir):
 
   if '/' in subdir:
     raise RuntimeError('Invalid subdir %r' % subdir)
-
-  # for logging
-  if 0:
-    print('Status: 200 OK')
-    print('Content-Type: text/plain; charset=utf-8')
-    print('')
 
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
@@ -176,10 +219,7 @@ def Upload(extract_base_dir):
   # Important: seek back to the beginning, because ZipFile read it!
   temp_file.seek(0)
 
-  # TODO: you can never overwrite a file?  You can only create new files.  That
-  # means we should use $TIMESTAMP.$client_name.wwz?
-
-  out_dir = os.path.join(extract_base_dir, payload_type, subdir)
+  out_dir = os.path.join(dest_base_dir, payload_type, subdir)
   try:
     os.makedirs(out_dir)
   except OSError as e:
@@ -243,10 +283,11 @@ Example usage:
   # TODO: 
   # - We could throttle here, e.g. if there are too many files
 
-  extract_base_dir = sys.argv[1]
+  dest_base_dir = sys.argv[1]
+  tmp_dir = sys.argv[2]
 
   try:
-    Upload(extract_base_dir)
+    Upload(dest_base_dir, tmp_dir)
   except RuntimeError as e:
     # CGI has a Status: header!
     print('Status: 400 Bad Request')
