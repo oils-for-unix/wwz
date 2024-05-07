@@ -17,8 +17,8 @@ banner() {
 }
 
 setup() {
-  # /U/ for for 'untrusted user uploads'
-  ssh $HOST "mkdir -v -p $DIR/U"
+  # /uuu/ for for 'untrusted user uploads'
+  ssh $HOST "mkdir -v -p $DIR/uuu"
 }
 
 readonly URL=http://travis-ci.oilshell.org/wwup.cgi
@@ -164,7 +164,7 @@ local-test() {
 }
 
 demo() {
-  scp wwup.cgi $HOST:$DIR
+  scp wwup.{py,cgi} $HOST:$DIR
 
   set +o errexit
   upload-bad-type
