@@ -192,9 +192,9 @@ def Upload(extract_base_dir):
   out_f.close()
   temp_file.close()
 
-  print('Status: 200 OK')
-  print('Content-Type: text/plain; charset=utf-8')
-  print('')
+  PrintStatusOk()
+
+
   print('Hi from wwup.cgi')
 
   print('t %r' % payload_type)
@@ -210,8 +210,30 @@ def Upload(extract_base_dir):
     print('%r' % rel_path)
 
 
+def PrintStatusOk():
+  print('Status: 200 OK')
+  print('Content-Type: text/plain; charset=utf-8')
+  print('')
+
+
 def main():
   cgitb.enable()  # Enable tracebacks
+
+  method = os.getenv('REQUEST_METHOD', 'GET')
+
+  if method == 'GET':
+    print(r'''
+wwwup.cgi - HTTP uploader
+
+Example usage:
+
+    curl \
+      --form 'payload-type=osh-runtime' \
+      --form 'subdir=git-123' \
+      --form 'wwz=@myfile.wwz' \
+      $URL
+''')
+    return
 
   # TODO:
   # - The root upload dir could be an argument, rather than relying on CWD

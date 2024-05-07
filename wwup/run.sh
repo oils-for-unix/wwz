@@ -116,6 +116,11 @@ upload-disallowed() {
     http://travis-ci.oilshell.org/wwup.cgi
 }
 
+get-request() {
+  curl --include \
+    http://travis-ci.oilshell.org/wwup.cgi
+}
+
 make-zips() {
   rm -r -f -v _tmp/*
   mkdir -p _tmp/{osh-runtime,shell-id,host-id,bad,other}
@@ -159,12 +164,16 @@ make-zips() {
 }
 
 local-test() {
-  # I guess I should pass upload dir
   ./wwup.cgi
+  REQUEST_METHOD=POST ./wwup.cgi < /dev/null
 }
 
 demo() {
   scp wwup.{py,cgi} $HOST:$DIR
+
+  get-request
+  echo status=$?
+  echo
 
   set +o errexit
   upload-bad-type
@@ -183,7 +192,6 @@ demo() {
   echo status=$?
   echo
 
-  set -x
   upload-one
   echo status=$?
   echo
