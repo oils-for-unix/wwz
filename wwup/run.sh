@@ -182,8 +182,12 @@ inherit-test() {
     --form foo=bar http://travis-ci.oilshell.org/inherit-test.cgi
 }
 
-demo() {
+deploy() {
   scp wwup.{py,cgi} $HOST:$DIR
+}
+
+demo() {
+  deploy
 
   get-request
   echo status=$?

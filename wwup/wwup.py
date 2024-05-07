@@ -34,6 +34,23 @@ Upload untrusted user content.
 
   - then DIFF by COMMIT
 
+## Notes on streaming / temp files
+
+cgi.py uses a temp file for the entire POST body.  But each file in the
+multipart form payload is buffered into a StringIO object.
+
+So we
+
+1. write that in-memory file to another temporary directory
+2. make it read-only
+3. atomically rename it onto the destination.  If this fails, the file was
+already uploaded.
+
+We could use something like 'python-multipart' to stream the upload.
+
+But for now we can just reject files with CONTENT_LENGTH greater than a certain
+amount.
+
 """
 
 import cgi
@@ -44,6 +61,24 @@ import os
 import sys
 import tempfile
 import zipfile
+
+
+def PrintStatusOk():
+  print('Status: 200 OK')
+  print('Content-Type: text/plain; charset=utf-8')
+  print('')
+
+
+# Debug before main()
+if 1:
+  PrintStatusOk()
+
+
+def log(msg, *args):
+  if args:
+    msg = msg % args
+  print(msg, file=sys.stderr)
+
 
 # Hard-coded payload validation:
 
@@ -88,45 +123,6 @@ PAYLOADS = {
 }
 
 
-class MyFieldStorage(cgi.FieldStorage):
-  """To atomically rename the temp file to a real file.
-
-  We make it read-only, so it can't be overwritten.
-  """
-  def __init__(self, tmp_dir, fp, environ):
-    cgi.FieldStorage.__init__(self, fp=fp, environ=environ)
-    #self.tmp_dir = tmp_dir
-
-  #def ZZ_make_file(self, binary=None):
-  #  self.tmp_fd, self.tmp_path = tempfile.mkstemp(prefix='wwup-',
-  #      dir=self.tmp_dir)
-
-  # TODO: you can never overwrite a file?  You can only create new files.  That
-  # means we should use $TIMESTAMP.$client_name.wwz?
-
-  # - Or override cgi make_file() in FieldStorage
-  #   - the default tempfile.TemporaryFile() is not good enough for us, because
-  #   want to rename
-  #   - however we have to make sure we've on the same file system
-  #   - yeah we had this bug for analytics I think
-  #   - the tempfile
-  #
-  # use os.mkstemp('tmp')
-  # So then we need dest_base_dir and tmp_dir as params
-
-  # - Write to temp file
-  # - close it
-  # - make it read-only
-  # - attempt to atomically rename
-  #   - if it fails, then delete it from /tmp - say "file already exists"
-  #   - otherwise you have saved a unique file
-  #
-  # - need a unit test for this
-
-  #   - we can generate our own temp name
-  #   - then atomically rename -- but this means the last one wins?
-  #   - can we chmod() to be read-only?  and then
-
 def Upload(dest_base_dir, tmp_dir):
   # Dumps info
   #cgi.test()
@@ -138,7 +134,6 @@ def Upload(dest_base_dir, tmp_dir):
     print('')
     print('OK')
 
-  #form = MyFieldStorage(tmp_dir, sys.stdin, os.environ)
   form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
 
   # Form field examples:
@@ -255,12 +250,6 @@ def Upload(dest_base_dir, tmp_dir):
     print('%r' % rel_path)
 
 
-def PrintStatusOk():
-  print('Status: 200 OK')
-  print('Content-Type: text/plain; charset=utf-8')
-  print('')
-
-
 def main(argv):
   cgitb.enable()  # Enable tracebacks
 
@@ -280,8 +269,7 @@ Example usage:
 ''')
     return
 
-  # TODO: 
-  # - We could throttle here, e.g. if there are too many files
+  # TODO: We could throttle here, e.g. if there are too many files
 
   dest_base_dir = sys.argv[1]
   tmp_dir = sys.argv[2]
