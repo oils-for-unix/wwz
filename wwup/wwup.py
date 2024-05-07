@@ -39,20 +39,15 @@ Upload untrusted user content.
 import cgi
 import cgitb
 import cStringIO
+import errno
 import os
-
-# To validate files inside .wwz
-# (We could also extract zip payloads)
+import sys
 import zipfile
 
 # Hard-coded payload validation:
 
 # definitely no .js .css .html
 ALLOWED_EXTENSIONS = ['.txt', '.tsv', '.csv', '.json']
-
-# Additional rule: you can never overwrite a file!  You can only create new
-# files.
-
 
 # Rules by payload:
 
@@ -181,7 +176,17 @@ def Upload(extract_base_dir):
   # Important: seek back to the beginning, because ZipFile read it!
   temp_file.seek(0)
 
-  out_path = wwz_value.filename
+  # TODO: you can never overwrite a file?  You can only create new files.  That
+  # means we should use $TIMESTAMP.$client_name.wwz?
+
+  out_dir = os.path.join(extract_base_dir, subdir)
+  try:
+    os.makedirs(out_dir)
+  except OSError as e:
+    if e.errno != errno.EEXIST:
+      raise
+  out_path = os.path.join(out_dir, wwz_value.filename)
+
   with open(out_path, 'w') as out_f:
     while True:
       chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
@@ -194,18 +199,18 @@ def Upload(extract_base_dir):
 
   PrintStatusOk()
 
-
   print('Hi from wwup.cgi')
+  print('')
+  print('payload type = %s' % payload_type)
+  print('subdir = %r' % subdir)
+  print('filename = %r' % wwz_value.filename)
+  print('num files = %r' % num_files)
+  print('num bytes = %r' % num_bytes)
+  print('')
 
-  print('t %r' % payload_type)
-  #print('z %d' % len(wwz_contents))
+  print('Wrote to %r' % out_path)
+  print('')
 
-  #print('wwz %r' % wwz_contents)
-
-  print('wrote out_path %r' % out_path)
-  print('path %r' % os.path.abspath(out_path))
-
-  print('%d files in wwz' % len(names))
   for rel_path in names:
     print('%r' % rel_path)
 
@@ -216,7 +221,7 @@ def PrintStatusOk():
   print('')
 
 
-def main():
+def main(argv):
   cgitb.enable()  # Enable tracebacks
 
   method = os.getenv('REQUEST_METHOD', 'GET')
@@ -235,12 +240,10 @@ Example usage:
 ''')
     return
 
-  # TODO:
-  # - The root upload dir could be an argument, rather than relying on CWD
-  # - We check here that there are not too many files
+  # TODO: 
+  # - We could throttle here, e.g. if there are too many files
 
-  # TODO: configure this
-  extract_base_dir = os.path.join(os.getcwd(), 'U')
+  extract_base_dir = sys.argv[1]
 
   try:
     Upload(extract_base_dir)
@@ -256,7 +259,6 @@ Example usage:
   # - How big was it?
   # - How long did it take to run the aggregation and HTML hooks?
 
-
   # TODO:
   # - Delete old files here, according to policy
 
@@ -270,8 +272,8 @@ Example usage:
   # - Executables in the repo cannot generate HTML/JS/CSS web content.
   # - Only executables we control and deploy manually.
 
-  print('DONE')
+  print('Done wwup.cgi')
 
 
 if __name__ == '__main__':
-  main()
+  main(sys.argv)
