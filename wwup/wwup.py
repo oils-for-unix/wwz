@@ -179,7 +179,7 @@ def Upload(extract_base_dir):
   # TODO: you can never overwrite a file?  You can only create new files.  That
   # means we should use $TIMESTAMP.$client_name.wwz?
 
-  out_dir = os.path.join(extract_base_dir, subdir)
+  out_dir = os.path.join(extract_base_dir, payload_type, subdir)
   try:
     os.makedirs(out_dir)
   except OSError as e:
