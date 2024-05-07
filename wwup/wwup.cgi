@@ -97,9 +97,10 @@ PAYLOADS = {
 def Upload(extract_base_dir):
   form = cgi.FieldStorage()
 
-  # Form fields
+  # Form field examples:
   # - payload-type=osh-runtime
-  # - zip=foo.zip  # files to extract
+  # - subdir=git-1ab435d
+  # - wwz=@foo.wwz
 
   payload_type = form.getfirst('payload-type')
   if payload_type is None:
@@ -108,6 +109,13 @@ def Upload(extract_base_dir):
   policy = PAYLOADS.get(payload_type)
   if policy is None:
     raise RuntimeError('Invalid payload type %r' % payload_type)
+
+  subdir = form.getfirst('subdir')
+  if subdir is None:
+    raise RuntimeError('Expected subdir')
+
+  if '/' in subdir:
+    raise RuntimeError('Invalid subdir %r' % subdir)
 
   # for logging
   if 0:

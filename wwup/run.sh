@@ -27,19 +27,37 @@ upload-one() {
   curl \
     --include \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
     $URL
 }
 
 upload-bad-type() {
-  # missing
+  banner 'Missing payload type'
   curl \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
-  # bad
+  banner 'Invalid payload type'
   curl \
     --form 'payload-type=yyy' \
+    --form 'subdir=git-123' \
+    --form 'wwz=@_tmp/one.wwz' \
+    http://travis-ci.oilshell.org/wwup.cgi
+}
+
+upload-bad-subdir() {
+  banner 'Missing subdir'
+  curl \
+    --form 'payload-type=osh-runtime' \
+    --form 'wwz=@_tmp/one.wwz' \
+    http://travis-ci.oilshell.org/wwup.cgi
+
+  banner 'Invalid subdir'
+  curl \
+    --form 'payload-type=osh-runtime' \
+    --form 'subdir=/root' \
     --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
@@ -48,6 +66,7 @@ upload-bad-zip() {
   banner 'Missing wwz field'
   curl \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     http://travis-ci.oilshell.org/wwup.cgi
 
   # --trace-ascii - shows the POST body
@@ -55,6 +74,7 @@ upload-bad-zip() {
   #curl --trace-ascii - \
   curl \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     --form 'wwz=some-string' \
     http://travis-ci.oilshell.org/wwup.cgi
 
@@ -63,6 +83,7 @@ upload-bad-zip() {
   #curl --trace-ascii - \
   curl \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/notzip' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
@@ -71,22 +92,26 @@ upload-disallowed() {
   # invalid file extension
   curl \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/bad.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
   # dir traversal
   curl \
     --form 'payload-type=osh-runtime' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/bad2.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
   curl \
     --form 'payload-type=only-2-files' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 
   curl \
     --form 'payload-type=only-3-bytes' \
+    --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
     http://travis-ci.oilshell.org/wwup.cgi
 }
@@ -143,6 +168,10 @@ demo() {
 
   set +o errexit
   upload-bad-type
+  echo status=$?
+  echo
+
+  upload-bad-subdir
   echo status=$?
   echo
 
