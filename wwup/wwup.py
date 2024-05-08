@@ -217,17 +217,32 @@ def Upload(environ, stdin, dest_base_dir, tmp_dir):
   except OSError as e:
     if e.errno != errno.EEXIST:
       raise
+  tmp_path = os.path.join(tmp_dir, wwz_value.filename)
   out_path = os.path.join(out_dir, wwz_value.filename)
 
-  with open(out_path, 'w') as out_f:
+  with open(tmp_path, 'w') as tmp_f:
     while True:
       chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
       if not chunk:
         break
-      out_f.write(chunk)
+      tmp_f.write(chunk)
 
-  out_f.close()
+  tmp_f.close()
   temp_file.close()
+
+  # Make it read-only
+  os.chmod(tmp_path, 0o444)
+
+  # Hm this does NOT fail because the directory containing it isn't read-only.
+
+  # mv -n is NOT atomic on not some versions
+
+  # https://stackoverflow.com/questions/13828544/atomic-create-file-if-not-exists-from-bash-script
+
+  try:
+    os.rename(tmp_path, out_path)
+  except OSError as e:
+    raise RuntimeError('Error renaming %r -> %r: %s' % (tmp_path, out_path, e))
 
   PrintStatusOk()
 
@@ -240,7 +255,7 @@ def Upload(environ, stdin, dest_base_dir, tmp_dir):
   print('num bytes = %r' % num_bytes)
   print('')
 
-  print('Wrote to %r' % out_path)
+  print('Wrote %r -> %r' % (tmp_path, out_path))
   print('')
 
   for rel_path in names:
