@@ -166,8 +166,8 @@ make-zips() {
 }
 
 local-test() {
-  ./wwup.cgi
-  REQUEST_METHOD=POST ./wwup.cgi < /dev/null
+  CONTENT_LENGTH=0 ./wwup.cgi
+  CONTENT_LENGTH=0 REQUEST_METHOD=POST ./wwup.cgi < /dev/null
 }
 
 inherit-test() {

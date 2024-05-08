@@ -123,7 +123,7 @@ PAYLOADS = {
 }
 
 
-def Upload(dest_base_dir, tmp_dir):
+def Upload(environ, stdin, dest_base_dir, tmp_dir):
   # Dumps info
   #cgi.test()
 
@@ -134,7 +134,7 @@ def Upload(dest_base_dir, tmp_dir):
     print('')
     print('OK')
 
-  form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
+  form = cgi.FieldStorage(fp=stdin, environ=environ)
 
   # Form field examples:
   # - payload-type=osh-runtime
@@ -148,6 +148,12 @@ def Upload(dest_base_dir, tmp_dir):
   policy = PAYLOADS.get(payload_type)
   if policy is None:
     raise RuntimeError('Invalid payload type %r' % payload_type)
+
+  num_bytes = int(environ['CONTENT_LENGTH'])
+  max_bytes = policy['max_bytes']
+  if num_bytes > max_bytes:
+      raise RuntimeError('POST body is %s bytes, but only %s are allowed' %
+          (num_bytes, max_bytes))
 
   subdir = form.getfirst('subdir')
   if subdir is None:
@@ -172,15 +178,6 @@ def Upload(dest_base_dir, tmp_dir):
     raise RuntimeError('Expected wwz field to be a file, not a string')
 
   temp_file = wwz_value.file  # get the file handle
-
-  temp_file.seek(0, os.SEEK_END)
-  num_bytes = temp_file.tell()
-  max_bytes = policy['max_bytes']
-  if num_bytes > max_bytes:
-      raise RuntimeError('wwz is %d bytes, but only %d are allowed' %
-          (num_bytes, max_bytes))
-
-  temp_file.seek(0)
 
   try:
     z = zipfile.ZipFile(temp_file)
@@ -275,7 +272,7 @@ Example usage:
   tmp_dir = sys.argv[2]
 
   try:
-    Upload(dest_base_dir, tmp_dir)
+    Upload(os.environ, sys.stdin, dest_base_dir, tmp_dir)
   except RuntimeError as e:
     # CGI has a Status: header!
     print('Status: 400 Bad Request')
