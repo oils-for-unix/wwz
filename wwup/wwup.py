@@ -264,8 +264,9 @@ def Upload(environ, stdin, dest_base_dir):
   print('URL: http://%s/%s/' % (http_host, rel_path))
   print('')
 
-  for rel_path in names:
-    print('%r' % rel_path)
+  if 0:
+    for rel_path in names:
+      print('%r' % rel_path)
 
 
 def main(argv):
