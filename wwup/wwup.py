@@ -204,9 +204,10 @@ def Upload(environ, stdin, dest_base_dir):
       raise RuntimeError('Invalid path %r' % rel_path)
 
     # Executable content check, e.g. disallow .html .css .jss
-    _, ext = os.path.splitext(rel_path)
-    if ext not in ALLOWED_EXTENSIONS:
-      raise RuntimeError('File %r has an invalid extension' % rel_path)
+    if not rel_path.endswith('/'):
+      _, ext = os.path.splitext(rel_path)
+      if ext not in ALLOWED_EXTENSIONS:
+        raise RuntimeError('File %r has an invalid extension' % rel_path)
 
   # Important: seek back to the beginning, because ZipFile read it!
   temp_file.seek(0)

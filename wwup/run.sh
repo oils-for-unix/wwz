@@ -29,7 +29,7 @@ upload-one() {
   curl \
     --include \
     --form 'payload-type=osh-runtime' \
-    --form 'subdir=git-132' \
+    --form 'subdir=git-133' \
     --form 'wwz=@_tmp/one.wwz' \
     $URL
 }
@@ -140,7 +140,8 @@ make-zips() {
   local wwz=_tmp/one.wwz
   rm -f -v $wwz
 
-  zip $wwz _tmp/{osh-runtime,shell-id,host-id}/* 
+  # Include dir entry for _tmp
+  zip $wwz _tmp/ _tmp/{osh-runtime,shell-id,host-id}/* 
 
   unzip -l $wwz
   echo
