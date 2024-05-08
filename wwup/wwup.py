@@ -123,7 +123,7 @@ PAYLOADS = {
 }
 
 
-def Upload(environ, stdin, dest_base_dir, tmp_dir):
+def Upload(environ, stdin, dest_base_dir):
   # Dumps info
   #cgi.test()
 
@@ -217,32 +217,28 @@ def Upload(environ, stdin, dest_base_dir, tmp_dir):
   except OSError as e:
     if e.errno != errno.EEXIST:
       raise
-  tmp_path = os.path.join(tmp_dir, wwz_value.filename)
+
   out_path = os.path.join(out_dir, wwz_value.filename)
 
-  with open(tmp_path, 'w') as tmp_f:
-    while True:
-      chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
-      if not chunk:
-        break
-      tmp_f.write(chunk)
+  # Fail if the file already exists
+  try:
+    fd = os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+  except OSError as e:
+    raise RuntimeError('Error opening %r: %s' % (out_path, e))
 
-  tmp_f.close()
+  out_f = os.fdopen(fd, 'w')
+
+  while True:
+    chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
+    if not chunk:
+      break
+    out_f.write(chunk)
+
+  out_f.close()
   temp_file.close()
 
   # Make it read-only
-  os.chmod(tmp_path, 0o444)
-
-  # Hm this does NOT fail because the directory containing it isn't read-only.
-
-  # mv -n is NOT atomic on not some versions
-
-  # https://stackoverflow.com/questions/13828544/atomic-create-file-if-not-exists-from-bash-script
-
-  try:
-    os.rename(tmp_path, out_path)
-  except OSError as e:
-    raise RuntimeError('Error renaming %r -> %r: %s' % (tmp_path, out_path, e))
+  os.chmod(out_path, 0o444)
 
   PrintStatusOk()
 
@@ -255,7 +251,16 @@ def Upload(environ, stdin, dest_base_dir, tmp_dir):
   print('num bytes = %r' % num_bytes)
   print('')
 
-  print('Wrote %r -> %r' % (tmp_path, out_path))
+  print('Wrote %r' % out_path)
+  print('')
+
+  doc_root = environ['DOCUMENT_ROOT']
+  rel_path = out_path[len(doc_root)+1 : ]
+  http_host = environ['HTTP_HOST']
+
+  # Trailing slash for .wwz
+  # TODO: Change this to https
+  print('URL: http://%s/%s/' % (http_host, rel_path))
   print('')
 
   for rel_path in names:
@@ -284,10 +289,9 @@ Example usage:
   # TODO: We could throttle here, e.g. if there are too many files
 
   dest_base_dir = sys.argv[1]
-  tmp_dir = sys.argv[2]
 
   try:
-    Upload(os.environ, sys.stdin, dest_base_dir, tmp_dir)
+    Upload(os.environ, sys.stdin, dest_base_dir)
   except RuntimeError as e:
     # CGI has a Status: header!
     print('Status: 400 Bad Request')

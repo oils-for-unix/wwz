@@ -20,7 +20,7 @@ setup() {
   # Matches params in wwup.cgi
 
   # /uuu/ for for 'untrusted user uploads'
-  ssh $HOST "mkdir -v -p $DIR/uuu $DIR/tmp-upload"
+  ssh $HOST "mkdir -v -p $DIR/uuu"
 }
 
 readonly URL=http://travis-ci.oilshell.org/wwup.cgi
@@ -29,7 +29,7 @@ upload-one() {
   curl \
     --include \
     --form 'payload-type=osh-runtime' \
-    --form 'subdir=git-123' \
+    --form 'subdir=git-132' \
     --form 'wwz=@_tmp/one.wwz' \
     $URL
 }
