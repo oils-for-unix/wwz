@@ -1,4 +1,4 @@
-#!/usr/bin/python -S
+#!/usr/bin/env python2
 from __future__ import print_function
 """
 wwz.py - Serve web content directly from a zip file.
