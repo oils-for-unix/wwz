@@ -1,2 +1,9 @@
 RewriteEngine On
 RewriteRule ^.*\.wwz/(.*)$ /wwz-bin/dispatch.fcgi/$1 [L]
+
+# We must fix UTF-8 on every domain.
+# 2024-06: This was for for travis-ci.oilshell.org
+#          oilshell.org has been fine since 2019-01
+AddDefaultCharset UTF-8
+
+
