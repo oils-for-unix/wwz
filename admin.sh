@@ -7,6 +7,14 @@ set -o nounset
 set -o pipefail
 set -o errexit
 
+# Needed for flup!
+# Should put this in the wwz dir!  Along with flup itself
+
+download-setuptools() {
+  wget --no-clobber --directory ~/src \
+    https://files.pythonhosted.org/packages/5e/bc/70a3d8213cda12eac84c770895c54521d0d19847b512cef54d6c83b0ddcb/setuptools-0.6c9.tar.gz
+}
+
 download-flup() {
   mkdir -p _tmp
   wget --directory _tmp \
