@@ -1,8 +1,8 @@
 wwz
 ===
 
-A FastCGI program that serves files from a zip file.  See this comment for
-context:
+A WSGI program that serves files from a zip file.  Deploy as CGI or FastCGI.
+See this comment for context:
 
 - <https://lobste.rs/s/xl63ah/fastcgi_forgotten_treasure#c_4jggfz>
 - Related answer: Why FastCGI and not HTTP?  Because FastCGI processes are
@@ -17,13 +17,28 @@ context:
   of shell scripts)
 - <http://travis-ci.oilshell.org/travis-jobs/> (for raw build logs)
 
-## The General Idea
+## June 2024 Update
+
+FastCGI no longer works reliably on DreamHost: [Comments on Scripting, CGI, and
+FastCGI](https://www.oilshell.org/blog/2024/06/cgi.html).
+
+So for now I've changed the default WSGI to CGI, rather than FastCGI.  This
+means that some pages on `oilshell.org` took a 50 millisecond latency hit :-(
+
+I hope to deploy it as a persistent process on other servers.
+
+## Older Notes
+
+The notes below aren't up to date, but they may give you a feeling for how it
+works.
+
+### The General Idea
 
 `wwz.py` is a very small WSGI app.  You download the `flup` "middleware" which
 turns the WSGI app into a FastCGI server.  (Analogously, you can turn a WSGI
 app into a CGI program.)
 
-## Files
+### Files
 
     wwz.py         # The WSGI program
     wwz-test.sh    # Shell tests for the FastCGI program
@@ -34,7 +49,7 @@ Not included:
 
     dispatch.fcgi  # A shell wrapper specific to the hosting environment.
 
-## Local Development
+### Local Development
 
 I do this both locally **and** on the server:
 
@@ -47,7 +62,7 @@ Then test out the app locally:
     ./wwz-test.sh make-testdata  # makes a zip file
     ./wwz-test.sh all
 
-## Deploying
+### Deploying
 
 I deploy it on Dreamhost.  Instructions vary depending on the web host.  (TODO:
 I want to stand it up on NearlyFreeSpeech too.)
@@ -95,7 +110,7 @@ Example `dispatch.fcgi`:
 You can also set `WWZ_REQUEST_LOG=1` and/or `WWZ_TRACE_LOG=1` to get more
 detailed logs.
 
-## Administering
+### Administering
 
 Sometimes I do this on the server:
 
