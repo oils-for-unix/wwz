@@ -202,6 +202,7 @@ DEBUG = False
 def _MakeListing(page_data, rel_paths, dir_prefix):
 
   dirs = set()
+  files = []
 
   assert dir_prefix == '' or dir_prefix.endswith('/'), dir_prefix
 
@@ -222,12 +223,13 @@ def _MakeListing(page_data, rel_paths, dir_prefix):
     slash1 = zip_rel_path.find('/')
     if slash1 == -1:
       # foo -> file is foo
-      page_data['files'].append(zip_rel_path)
+      files.append(zip_rel_path)
     else:
       # Note: we can have a rel_path _tmp/soil/, but NOT _tmp/
       dir_name = zip_rel_path[:slash1+1]  # include /
       dirs.add(dir_name)
 
+  page_data['files'].extend(sorted(files))
   page_data['dirs'].extend(sorted(dirs))
 
 

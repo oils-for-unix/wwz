@@ -23,7 +23,7 @@ class WwzTest(unittest.TestCase):
     CASES = [
         (['file.txt', 'dir/file.txt'], ''),
         # list inside
-        (['file.txt', 'dir/file.txt'], 'dir/'),
+        (['file.txt', 'dir/file.txt', 'dir/file2.tsv'], 'dir/'),
 
         (['file.txt', 'dir/empty-dir/'], ''),
         (['file.txt', 'dir/sub1/z', 'dir/sub1/x', 'dir/sub2/'], 'dir/'),
