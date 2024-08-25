@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Usage:
-#   ./admin.sh <function name>
+#   ./run.sh <function name>
 
 set -o nounset
 set -o pipefail
@@ -9,6 +9,11 @@ set -o errexit
 
 readonly HOST=travis-ci.oilshell.org
 readonly DIR=travis-ci.oilshell.org
+
+#readonly WWUP_URL=http://travis-ci.oilshell.org/wwup.cgi
+
+# Redirecting to HTTPS, which is annoying
+readonly WWUP_URL=https://travis-ci.oilshell.org/wwup.cgi
 
 banner() {
   echo ---
@@ -23,15 +28,13 @@ setup() {
   ssh $HOST "mkdir -v -p $DIR/uuu"
 }
 
-readonly URL=http://travis-ci.oilshell.org/wwup.cgi
-
 upload-one() {
   curl \
     --include \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-133' \
     --form 'wwz=@_tmp/one.wwz' \
-    $URL
+    $WWUP_URL
 }
 
 upload-bad-type() {
@@ -39,14 +42,14 @@ upload-bad-type() {
   curl \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   banner 'Invalid payload type'
   curl \
     --form 'payload-type=yyy' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 }
 
 upload-bad-subdir() {
@@ -54,14 +57,14 @@ upload-bad-subdir() {
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   banner 'Invalid subdir'
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=/root' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 }
 
 upload-bad-zip() {
@@ -69,7 +72,7 @@ upload-bad-zip() {
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   # --trace-ascii - shows the POST body
   banner 'wwz field is a string rather than a file'
@@ -78,7 +81,7 @@ upload-bad-zip() {
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
     --form 'wwz=some-string' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   echo x > _tmp/notzip
   banner 'wwz field is not a zip file'
@@ -87,7 +90,7 @@ upload-bad-zip() {
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/notzip' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 }
 
 upload-disallowed() {
@@ -96,31 +99,31 @@ upload-disallowed() {
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/bad.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   # dir traversal
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/bad2.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   curl \
     --form 'payload-type=only-2-files' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 
   curl \
     --form 'payload-type=only-3-bytes' \
     --form 'subdir=git-123' \
     --form 'wwz=@_tmp/one.wwz' \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 }
 
 get-request() {
   curl --include \
-    http://travis-ci.oilshell.org/wwup.cgi
+    $WWUP_URL
 }
 
 make-zips() {
