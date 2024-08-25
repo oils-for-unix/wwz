@@ -28,6 +28,15 @@ setup() {
   ssh $HOST "mkdir -v -p $DIR/uuu"
 }
 
+upload-overwrite() {
+  curl \
+    --include \
+    --form 'payload-type=only-2-files' \
+    --form 'subdir=git-133' \
+    --form 'wwz=@_tmp/overwrite.wwz' \
+    $WWUP_URL
+}
+
 upload-one() {
   curl \
     --include \
@@ -63,6 +72,13 @@ upload-bad-subdir() {
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=/root' \
+    --form 'wwz=@_tmp/one.wwz' \
+    $WWUP_URL
+
+  banner 'Invalid subdir with too many parts'
+  curl \
+    --form 'payload-type=osh-runtime' \
+    --form 'subdir=one/two' \
     --form 'wwz=@_tmp/one.wwz' \
     $WWUP_URL
 }
@@ -149,6 +165,14 @@ make-zips() {
   unzip -l $wwz
   echo
 
+  local wwz2=_tmp/overwrite.wwz
+  rm -f -v $wwz2
+
+  date > _tmp/overwrite.txt
+  zip $wwz2 _tmp/overwrite.txt
+  unzip -l $wwz2
+  echo
+
   local bad=_tmp/bad.wwz
   rm -f -v $bad
 
@@ -213,6 +237,10 @@ demo() {
   echo
 
   upload-disallowed
+  echo status=$?
+  echo
+
+  upload-overwrite
   echo status=$?
   echo
 

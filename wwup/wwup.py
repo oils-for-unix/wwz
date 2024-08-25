@@ -34,6 +34,41 @@ Upload untrusted user content.
 
   - then DIFF by COMMIT
 
+## Soil CI
+
+The uploaded structure we want:
+
+    uuu.oilshell.org/
+      wwup.cgi
+      github-jobs/
+        7783/
+          benchmarks.wwz
+          benchmarks.json
+          benchmarks.tsv
+
+The HTTP POST request.  There are three params:
+
+  payload-type=soil
+  subdir=github-jobs/7783
+  wwz=@benchmarks.wwz
+
+- OK might as well add the ability to upload multiple files?
+  - is wwz special?  Yes because we open it up and validate it with zipfile
+
+  file1=benchmarks.json
+  file2=benchmarks.tsv
+
+Note: it might be possible to generalize this into an array, but let's keep it
+simple for now.
+
+TODO:
+
+- This means that 'subdir' is `github-jobs/7783` then?
+  - we have to allow a slash
+  - disallow path components that are . or ..
+- allow raw HTML here
+  - maybe allowed_exts: [] is part of the configuration
+
 ## Notes on streaming / temp files
 
 cgi.py uses a temp file for the entire POST body.  But each file in the
@@ -105,22 +140,83 @@ PAYLOADS = {
     # total size of .wwz is 5 MB max, to prevent people from filling up too
     # much
     'max_bytes': 5 * 1000 * 1000,
+    'subdir_depth': 1,
   },
 
   'only-2-files': {
     'max_files': 2,
     'max_bytes': 1000,
+    'subdir_depth': 1,
+
+    # For testing
+    'allow_overwrite': True,
   },
 
   'only-3-bytes': {
     'max_files': 5,
     'max_bytes': 3,
+    'subdir_depth': 1,
   },
 
   # Is this one policy, or multiple policies?
   'oils-ci': {
+    # the 'wild' tests might exceed 1000 files and 20 MB?
+    'max_files': 1000,
+    'max_bytes': 20 * 1000 * 1000,
+
+    # subdir=github-jobs/1234
+    'subdir_depth': 2,
+
+    # disable check for extensions
+    #
+    # TODO: should only allow text types + "grandfathered" HTML/CSS/JS
+    # HTML is still a problem because people could put links to their own site
+    # on ours - we could use an HTML filter
+    #
+    # Follow principle of least privilage
+    'check_extensions': False,
   }
 }
+
+def ValidateSubdir(subdir, expected_depth):
+  parts = subdir.split('/')
+  for part in parts:
+    if part in ('', '.', '..'):
+      return 'Invalid subdir part %r' % part
+
+  depth = len(parts) 
+  if depth != expected_depth:
+    return 'Expected %d parts, got %d' % (expected_depth, depth)
+
+  return None
+
+
+def CopyFile(temp_file, out_path, allow_overwrite):
+  if allow_overwrite:
+    mode = os.O_CREAT | os.O_WRONLY
+  else:
+    # Fail if the file already exists
+    mode = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+
+  try:
+    fd = os.open(out_path, mode, 0o644)
+  except OSError as e:
+    raise RuntimeError('Error opening %r: %s' % (out_path, e))
+
+  out_f = os.fdopen(fd, 'w')
+
+  while True:
+    chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
+    if not chunk:
+      break
+    out_f.write(chunk)
+
+  out_f.close()
+  temp_file.close()
+
+  if not allow_overwrite:
+    # Make it read-only too
+    os.chmod(out_path, 0o444)
 
 
 def Upload(environ, stdin, dest_base_dir):
@@ -159,8 +255,9 @@ def Upload(environ, stdin, dest_base_dir):
   if subdir is None:
     raise RuntimeError('Expected subdir')
 
-  if '/' in subdir:
-    raise RuntimeError('Invalid subdir %r' % subdir)
+  error_str = ValidateSubdir(subdir, policy['subdir_depth'])
+  if error_str:
+    raise RuntimeError('Invalid subdir %r: %s' % (subdir, error_str))
 
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
@@ -203,14 +300,12 @@ def Upload(environ, stdin, dest_base_dir):
     if norm_path.startswith('.'):
       raise RuntimeError('Invalid path %r' % rel_path)
 
-    # Executable content check, e.g. disallow .html .css .jss
-    if not rel_path.endswith('/'):
-      _, ext = os.path.splitext(rel_path)
-      if ext not in ALLOWED_EXTENSIONS:
-        raise RuntimeError('File %r has an invalid extension' % rel_path)
-
-  # Important: seek back to the beginning, because ZipFile read it!
-  temp_file.seek(0)
+    if policy.get('check_extensions', True):
+      # Executable content check, e.g. disallow .html .css .jss
+      if not rel_path.endswith('/'):
+        _, ext = os.path.splitext(rel_path)
+        if ext not in ALLOWED_EXTENSIONS:
+          raise RuntimeError('File %r has an invalid extension' % rel_path)
 
   out_dir = os.path.join(dest_base_dir, payload_type, subdir)
   try:
@@ -219,27 +314,11 @@ def Upload(environ, stdin, dest_base_dir):
     if e.errno != errno.EEXIST:
       raise
 
+  # Important: seek back to the beginning, because ZipFile read it!
+  temp_file.seek(0)
   out_path = os.path.join(out_dir, wwz_value.filename)
 
-  # Fail if the file already exists
-  try:
-    fd = os.open(out_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
-  except OSError as e:
-    raise RuntimeError('Error opening %r: %s' % (out_path, e))
-
-  out_f = os.fdopen(fd, 'w')
-
-  while True:
-    chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
-    if not chunk:
-      break
-    out_f.write(chunk)
-
-  out_f.close()
-  temp_file.close()
-
-  # Make it read-only
-  os.chmod(out_path, 0o444)
+  CopyFile(temp_file, out_path, policy.get('allow_overwrite', False))
 
   PrintStatusOk()
 
@@ -324,3 +403,7 @@ Example usage:
 
 if __name__ == '__main__':
   main(sys.argv)
+
+# vim: sw=2
+
+

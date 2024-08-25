@@ -7,19 +7,23 @@ set -o nounset
 set -o pipefail
 set -o errexit
 
-diff-master() {
-  git diff master..
+log-main() {
+  git log main..
 }
 
-rebase-master() {
-  git rebase -i master
+diff-main() {
+  git diff main..
 }
 
-merge-to-master() {
+rebase-main() {
+  git rebase -i main
+}
+
+merge-to-main() {
   local branch
   branch=$(git rev-parse --abbrev-ref HEAD)
 
-  git checkout master
+  git checkout main
   git merge $branch
   git push
   git checkout $branch
