@@ -161,13 +161,13 @@ PAYLOADS = {
   },
 
   # Is this one policy, or multiple policies?
-  'soil-ci': {
+  'github-jobs': {
     # the 'wild' tests might exceed 1000 files and 20 MB?
     'max_wwz_entries': 1000,
     'max_bytes': 20 * 1000 * 1000,
 
     # subdir=github-jobs/1234
-    'subdir_depth': 2,
+    'subdir_depth': 1,
 
     # sourcehut / Github Actions can retry tasks
     'allow_overwrite': True,
