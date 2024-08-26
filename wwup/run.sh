@@ -7,13 +7,13 @@ set -o nounset
 set -o pipefail
 set -o errexit
 
-readonly HOST=travis-ci.oilshell.org
-readonly DIR=travis-ci.oilshell.org
+readonly HOST=uuu.oilshell.org
+readonly DIR=uuu.oilshell.org
 
-#readonly WWUP_URL=http://travis-ci.oilshell.org/wwup.cgi
+#readonly WWUP_URL=http://uuu.oilshell.org/wwup.cgi
 
 # Redirecting to HTTPS, which is annoying
-readonly WWUP_URL=https://travis-ci.oilshell.org/wwup.cgi
+readonly WWUP_URL=https://uuu.oilshell.org/wwup.cgi
 
 banner() {
   echo ---
@@ -227,12 +227,12 @@ inherit-test() {
   scp inherit-test.cgi $HOST:$DIR
 
   set -x
-  curl http://travis-ci.oilshell.org/inherit-test.cgi
+  curl http://uuu.oilshell.org/inherit-test.cgi
   echo
 
   #curl --trace-ascii - \
   curl \
-    --form foo=bar http://travis-ci.oilshell.org/inherit-test.cgi
+    --form foo=bar http://uuu.oilshell.org/inherit-test.cgi
 }
 
 deploy() {
