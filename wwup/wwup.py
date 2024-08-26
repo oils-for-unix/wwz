@@ -105,7 +105,7 @@ def PrintStatusOk():
 
 
 # Debug before main()
-if 1:
+if 0:
   PrintStatusOk()
 
 
@@ -147,9 +147,6 @@ PAYLOADS = {
     'max_wwz_entries': 2,
     'max_bytes': 1000,
     'subdir_depth': 1,
-
-    # For testing
-    'allow_overwrite': True,
   },
 
   'only-3-bytes': {
@@ -164,13 +161,16 @@ PAYLOADS = {
   },
 
   # Is this one policy, or multiple policies?
-  'oils-ci': {
+  'soil-ci': {
     # the 'wild' tests might exceed 1000 files and 20 MB?
     'max_wwz_entries': 1000,
     'max_bytes': 20 * 1000 * 1000,
 
     # subdir=github-jobs/1234
     'subdir_depth': 2,
+
+    # sourcehut / Github Actions can retry tasks
+    'allow_overwrite': True,
 
     # disable check for extensions
     #
@@ -403,15 +403,15 @@ Example usage:
     curl \
       --form 'payload-type=osh-runtime' \
       --form 'subdir=git-123' \
-      --form 'wwz=@myfile.wwz' \
+      --form 'file1=@myfile.wwz' \
       $URL
 
     curl \
       --form 'payload-type=soil-ci' \
       --form 'subdir=git-123' \
-      --form 'wwz=@benchmarks.wwz' \
-      --form 'file1=@benchmarks.tsv' \
-      --form 'file2=@benchmarks.json' \
+      --form 'file1=@benchmarks.wwz' \
+      --form 'file2=@benchmarks.tsv' \
+      --form 'file3=@benchmarks.json' \
       $URL
 
     curl \
