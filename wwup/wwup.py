@@ -93,6 +93,8 @@ import cgitb
 import cStringIO
 import errno
 import os
+import pwd
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -160,7 +162,9 @@ PAYLOADS = {
     'allow_overwrite': True,
   },
 
-  # Is this one policy, or multiple policies?
+  # Policy for jobs uploading .wwz, .tsv, .json
+
+  # TODO: generalize it to sourcehut-jobs too
   'github-jobs': {
     # the 'wild' tests might exceed 1000 files and 20 MB?
     'max_wwz_entries': 1000,
@@ -181,6 +185,30 @@ PAYLOADS = {
     # Follow principle of least privilage
     'check_wwz_names': False,
   }
+
+  # TODO:
+  # - policy for uploading cpp-tarball!  This lives in github-jobs/git-$hash
+  #   - this one shouldn't allow overwriting?
+  #   - and it can allow tar
+
+  # - hook for writing jobs index
+  #   - then delete old files
+  # - policy for uploading status API files
+  #   - hook for deleting old files
+}
+
+HOOKS = {
+    'soil-event-job-done': {
+      # If the path is relative, it's relative to $HOME
+      'argv0': 'soil-web/soil/web.sh',
+      # the user can pass arbitrary args as URL params
+      'argv_prefix': ['event-job-done'],
+    },
+
+    'soil-web-hello': {
+      'argv0': 'soil-web/soil/web.sh',
+      'argv_prefix': ['hello'],
+    },
 }
 
 def ValidateSubdir(subdir, expected_depth):
@@ -381,12 +409,43 @@ def Upload(environ, form, dest_base_dir):
   print('')
 
 
-def RunHook(environ, form, run_hook):
+def RunHook(environ, home_dir, hook_config, form):
   PrintStatusOk()
 
-  # TODO: Look up policy?
+  argv0 = hook_config['argv0']
+  assert not os.path.isabs(argv0), argv0
 
-  print('TODO: Run hook %r' % run_hook)
+  argv0_path = os.path.join(home_dir, argv0)
+  argv_prefix = hook_config.get('argv_prefix', [])
+
+  argv = [argv0_path] + argv_prefix
+
+  print('Running hook %r' % hook_config)
+  print('argv %r' % argv)
+  print('')
+
+  # Required so that HTTP headers are printed
+
+  sys.stdout.flush()
+
+  # Note: should we have less trust in this binary?  We own it and deploy it.
+  #
+  # We could capture BOTH stdout and stderr, and print them to the response?
+  #
+  # TODO:
+  # If status is non-zero, we could return HTTP 500.
+
+  subprocess.check_call(argv)
+
+
+def GetHomeDir():
+    uid = os.getuid()
+    try:
+        e = pwd.getpwuid(uid)
+    except KeyError:
+        raise AssertionError("Couldn't get home dir")
+
+    return e.pw_dir
 
 
 def main(argv):
@@ -407,8 +466,8 @@ Example usage:
       $URL
 
     curl \
-      --form 'payload-type=soil-ci' \
-      --form 'subdir=git-123' \
+      --form 'payload-type=github-jobs' \
+      --form 'subdir=1234' \
       --form 'file1=@benchmarks.wwz' \
       --form 'file2=@benchmarks.tsv' \
       --form 'file3=@benchmarks.json' \
@@ -416,6 +475,8 @@ Example usage:
 
     curl \
       --form 'run-hook=soil-event-job-done' \
+      --form 'arg1=foo' \
+      --form 'arg2=bar' \
       $URL
 ''')
     return
@@ -432,7 +493,11 @@ Example usage:
 
   try:
     if run_hook is not None:
-      RunHook(os.environ, form, run_hook)
+      home_dir = GetHomeDir()
+      hook_config = HOOKS.get(run_hook)
+      if hook_config is None:
+        raise RuntimeError('Invalid hook %r' % run_hook)
+      RunHook(os.environ, home_dir, hook_config, form)
     else:
       Upload(os.environ, form, dest_base_dir)
   except RuntimeError as e:

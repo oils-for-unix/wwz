@@ -278,4 +278,35 @@ demo() {
   echo
 }
 
+hook-hello() {
+  banner 'Invalid hook'
+  curl \
+    --include \
+    --form 'run-hook=zzz' \
+    $WWUP_URL
+
+  banner 'Error in hook / misconfigured hook'
+  # TODO: the file is not executable, etc.  It returns status 1
+  curl \
+    --include \
+    --form 'run-hook=bad-hook' \
+    $WWUP_URL
+
+  banner 'hook-hello'
+
+  curl \
+    --include \
+    --form 'run-hook=soil-web-hello' \
+    --form 'arg1=arg1' \
+    --form 'arg2=arg2' \
+    $WWUP_URL
+
+}
+
+hook-demo() {
+  deploy
+
+  hook-hello
+}
+
 "$@"
