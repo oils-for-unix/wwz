@@ -29,6 +29,7 @@ setup() {
 }
 
 upload-overwrite() {
+  banner 'upload-overwrite'
   curl \
     --include \
     --form 'payload-type=only-2-files' \
@@ -38,16 +39,27 @@ upload-overwrite() {
 }
 
 upload-multiple() {
+  banner 'Bad outer filename'
   curl \
     --include \
-    --form 'payload-type=osh-runtime' \
+    --form 'payload-type=testing' \
+    --form 'subdir=multiple-456' \
+    --form 'file1=@_tmp/notzip' \
+    $WWUP_URL
+
+  banner 'upload-multiple'
+  curl \
+    --include \
+    --form 'payload-type=testing' \
     --form 'subdir=multiple-456' \
     --form 'file1=@_tmp/one.wwz' \
-    --form 'file2=@_tmp/overwrite.wwz' \
+    --form 'file2=@_tmp/extra.json' \
+    --form 'file3=@_tmp/extra.tsv' \
     $WWUP_URL
 }
 
 upload-one() {
+  banner 'upload-one'
   curl \
     --include \
     --form 'payload-type=osh-runtime' \
@@ -182,6 +194,9 @@ make-zips() {
   zip $wwz2 _tmp/overwrite.txt
   unzip -l $wwz2
   echo
+
+  echo '{"hi": 42}' > _tmp/extra.json
+  echo 'one' > _tmp/extra.tsv
 
   local bad=_tmp/bad.wwz
   rm -f -v $bad

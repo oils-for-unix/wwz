@@ -136,7 +136,7 @@ PAYLOADS = {
     ],
 
     # loose sanity check on .wwz
-    'max_files': 1000,
+    'max_wwz_entries': 1000,
     # total size of .wwz is 5 MB max, to prevent people from filling up too
     # much
     'max_bytes': 5 * 1000 * 1000,
@@ -144,7 +144,7 @@ PAYLOADS = {
   },
 
   'only-2-files': {
-    'max_files': 2,
+    'max_wwz_entries': 2,
     'max_bytes': 1000,
     'subdir_depth': 1,
 
@@ -153,15 +153,20 @@ PAYLOADS = {
   },
 
   'only-3-bytes': {
-    'max_files': 5,
+    'max_wwz_entries': 5,
     'max_bytes': 3,
     'subdir_depth': 1,
+  },
+
+  'testing': {
+    # For testing
+    'allow_overwrite': True,
   },
 
   # Is this one policy, or multiple policies?
   'oils-ci': {
     # the 'wild' tests might exceed 1000 files and 20 MB?
-    'max_files': 1000,
+    'max_wwz_entries': 1000,
     'max_bytes': 20 * 1000 * 1000,
 
     # subdir=github-jobs/1234
@@ -174,7 +179,7 @@ PAYLOADS = {
     # on ours - we could use an HTML filter
     #
     # Follow principle of least privilage
-    'check_extensions': False,
+    'check_wwz_names': False,
   }
 }
 
@@ -219,65 +224,80 @@ def CopyFile(temp_file, out_path, allow_overwrite):
     os.chmod(out_path, 0o444)
 
 
-def DoOneFile(label, policy, environ, wwz_value, out_dir):
+def DoOneFile(label, policy, environ, form_val, out_dir):
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
 
-  #print('FILE %r' %  wwz_value.file)
-  #print('FILEname %r' %  wwz_value.filename)
-  if wwz_value.filename is None:
+  #print('FILE %r' %  form_val.file)
+  #print('FILEname %r' %  form_val.filename)
+  if form_val.filename is None:
     raise RuntimeError('Expected %s field to be a file, not a string' % label)
 
-  temp_file = wwz_value.file  # get the file handle
+  temp_file = form_val.file  # get the file handle
 
-  try:
-    z = zipfile.ZipFile(temp_file)
-  except zipfile.BadZipfile as e:
-    raise RuntimeError('Error opening zip: %s' % e)
+  os.path.splitext
+  _, outer_ext = os.path.splitext(form_val.filename)
 
-  names = z.namelist()
-  num_files = len(names)
+  num_wwz_entries = -1
 
-  max_files = policy['max_files']
-  if num_files > max_files:
-      raise RuntimeError('wwz has %d files, but only %d are allowed' %
-          (num_files, max_files))
+  maybe_trailing_slash = ''  # no trailing slash for regular files
 
-  for rel_path in names:
-    # Can't have absolute paths
-    if rel_path.startswith('/'):
-      raise RuntimeError('Invalid path %r' % rel_path)
+  if outer_ext == '.wwz':
+    maybe_trailing_slash = '/'  # for printing URL
 
-    # Path traversal check
-    # normpath turns foo/bar/../../.. into '..'
-    norm_path = os.path.normpath(rel_path)
-    if norm_path.startswith('.'):
-      raise RuntimeError('Invalid path %r' % rel_path)
+    try:
+      z = zipfile.ZipFile(temp_file)
+    except zipfile.BadZipfile as e:
+      raise RuntimeError('Error opening zip: %s' % e)
 
-    if policy.get('check_extensions', True):
-      # Executable content check, e.g. disallow .html .css .jss
-      if not rel_path.endswith('/'):
-        _, ext = os.path.splitext(rel_path)
-        if ext not in ALLOWED_EXTENSIONS:
-          raise RuntimeError('File %r has an invalid extension' % rel_path)
+    names = z.namelist()
+    num_wwz_entries = len(names)
 
-  # Important: seek back to the beginning, because ZipFile read it!
-  temp_file.seek(0)
-  out_path = os.path.join(out_dir, wwz_value.filename)
+    # Low limit of 10 by default
+    max_wwz_entries = policy.get('max_wwz_entries', 10)
+    if num_wwz_entries > max_wwz_entries:
+        raise RuntimeError('wwz has %d files, but only %d are allowed' %
+            (num_wwz_entries, max_wwz_entries))
 
+    for rel_path in names:
+      # Can't have absolute paths
+      if rel_path.startswith('/'):
+        raise RuntimeError('Invalid path %r' % rel_path)
+
+      # Path traversal check
+      # normpath turns foo/bar/../../.. into '..'
+      norm_path = os.path.normpath(rel_path)
+      if norm_path.startswith('.'):
+        raise RuntimeError('Invalid path %r' % rel_path)
+
+      if policy.get('check_wwz_names', True):
+        # Executable content check, e.g. disallow .html .css .jss
+        if not rel_path.endswith('/'):
+          _, ext = os.path.splitext(rel_path)
+          if ext not in ALLOWED_EXTENSIONS:
+            raise RuntimeError('Archive file %r has an invalid extension' % rel_path)
+
+    # Important: seek back to the beginning, because ZipFile read it!
+    temp_file.seek(0)
+
+  elif outer_ext not in ALLOWED_EXTENSIONS:
+    # If it's not .wwz, it must be a text file.  This doesn't respect
+    # check_wwz_names.
+    raise RuntimeError('File %r has an invalid extension' % form_val.filename)
+
+  out_path = os.path.join(out_dir, form_val.filename)
   CopyFile(temp_file, out_path, policy.get('allow_overwrite', False))
-
 
   doc_root = environ['DOCUMENT_ROOT']
   rel_path = out_path[len(doc_root)+1 : ]
   http_host = environ['HTTP_HOST']
 
   # Trailing slash for .wwz
-  url = 'https://%s/%s/' % (http_host, rel_path)
+  url = 'https://%s/%s%s' % (http_host, rel_path, maybe_trailing_slash)
 
   return {
-      'filename': wwz_value.filename,
-      'num_files': num_files,
+      'filename': form_val.filename,
+      'num_wwz_entries': num_wwz_entries,
       'out_path': out_path,
       'url': url,
       }
@@ -306,7 +326,8 @@ def Upload(environ, form, dest_base_dir):
     raise RuntimeError('Invalid payload type %r' % payload_type)
 
   num_bytes = int(environ['CONTENT_LENGTH'])
-  max_bytes = policy['max_bytes']
+  # Low limit of 10_000 by default
+  max_bytes = policy.get('max_bytes', 10000)
   if num_bytes > max_bytes:
       raise RuntimeError('POST body is %s bytes, but only %s are allowed' %
           (num_bytes, max_bytes))
@@ -315,7 +336,7 @@ def Upload(environ, form, dest_base_dir):
   if subdir is None:
     raise RuntimeError('Expected subdir')
 
-  error_str = ValidateSubdir(subdir, policy['subdir_depth'])
+  error_str = ValidateSubdir(subdir, policy.get('subdir_depth', 1))
   if error_str:
     raise RuntimeError('Invalid subdir %r: %s' % (subdir, error_str))
 
