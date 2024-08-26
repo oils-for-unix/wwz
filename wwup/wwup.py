@@ -184,7 +184,14 @@ PAYLOADS = {
     #
     # Follow principle of least privilage
     'check_wwz_names': False,
-  }
+  },
+
+  'status-api': {
+    # status-api/ has github/$RUN_ID/ and then dummy.status.txt
+    'subdir_depth': 2,
+    # sourcehut / Github Actions can retry tasks
+    'allow_overwrite': True,
+  },
 
   # TODO:
   # - policy for uploading cpp-tarball!  This lives in github-jobs/git-$hash
@@ -198,6 +205,11 @@ PAYLOADS = {
 }
 
 HOOKS = {
+    'soil-web-hello': {
+      'argv0': 'soil-web/soil/web.sh',
+      'argv_prefix': ['hello'],
+    },
+
     'soil-event-job-done': {
       # If the path is relative, it's relative to $HOME
       'argv0': 'soil-web/soil/web.sh',
@@ -205,9 +217,11 @@ HOOKS = {
       'argv_prefix': ['event-job-done'],
     },
 
-    'soil-web-hello': {
+    'soil-cleanup-status-api': {
+      # If the path is relative, it's relative to $HOME
       'argv0': 'soil-web/soil/web.sh',
-      'argv_prefix': ['hello'],
+      # the user can pass arbitrary args as URL params
+      'argv_prefix': ['cleanup-status-api'],
     },
 }
 
