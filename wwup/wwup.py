@@ -110,6 +110,23 @@ ALLOWED_EXTENSIONS.append('.tar')
 # Rules by payload:
 
 PAYLOADS = {
+  'only-2-files': {
+    'max_wwz_entries': 2,
+    'max_bytes': 1000,
+    'subdir_depth': 1,
+  },
+
+  'only-3-bytes': {
+    'max_wwz_entries': 5,
+    'max_bytes': 3,
+    'subdir_depth': 1,
+  },
+
+  'testing': {
+    # For testing
+    'allow_overwrite': True,
+  },
+
   'osh-runtime': {
     # How should we check these patterns, if at all?
     #
@@ -130,33 +147,12 @@ PAYLOADS = {
     'subdir_depth': 1,
   },
 
-  'only-2-files': {
-    'max_wwz_entries': 2,
-    'max_bytes': 1000,
-    'subdir_depth': 1,
-  },
-
-  'only-3-bytes': {
-    'max_wwz_entries': 5,
-    'max_bytes': 3,
-    'subdir_depth': 1,
-  },
-
-  'testing': {
-    # For testing
-    'allow_overwrite': True,
-  },
-
   # Policy for jobs uploading .wwz, .tsv, .json
-
-  # TODO:
-  # - generalize it to sourcehut-jobs too
-  # - split policy for cpp-tarball
-  #   - that one needs AUTH, because it's code that will be executed by workers
   'github-jobs': {
-    # the 'wild' tests might exceed 1000 files and 20 MB?
-    'max_wwz_entries': 1000,
-    'max_bytes': 20 * 1000 * 1000,
+    # benchmarks task has 3450 files
+    'max_wwz_entries': 4000,
+    # wild.wwz is 23 MB
+    'max_bytes': 30 * 1000 * 1000,
 
     # subdir=github-jobs/1234
     'subdir_depth': 1,

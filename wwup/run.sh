@@ -30,6 +30,7 @@ setup() {
 
 upload-overwrite() {
   banner 'upload-overwrite'
+    #--fail-with-body \
   curl \
     --include \
     --form 'payload-type=only-2-files' \
