@@ -68,24 +68,6 @@ TODO:
   - disallow path components that are . or ..
 - allow raw HTML here
   - maybe allowed_exts: [] is part of the configuration
-
-## Notes on streaming / temp files
-
-cgi.py uses a temp file for the entire POST body.  But each file in the
-multipart form payload is buffered into a StringIO object.
-
-So we
-
-1. write that in-memory file to another temporary directory
-2. make it read-only
-3. atomically rename it onto the destination.  If this fails, the file was
-already uploaded.
-
-We could use something like 'python-multipart' to stream the upload.
-
-But for now we can just reject files with CONTENT_LENGTH greater than a certain
-amount.
-
 """
 
 import cgi
@@ -121,6 +103,9 @@ def log(msg, *args):
 
 # definitely no .js .css .html
 ALLOWED_EXTENSIONS = ['.txt', '.tsv', '.csv', '.json']
+
+# Temporary - we need to split policies for .wwz and .tar
+ALLOWED_EXTENSIONS.append('.tar')
 
 # Rules by payload:
 
@@ -164,7 +149,10 @@ PAYLOADS = {
 
   # Policy for jobs uploading .wwz, .tsv, .json
 
-  # TODO: generalize it to sourcehut-jobs too
+  # TODO:
+  # - generalize it to sourcehut-jobs too
+  # - split policy for cpp-tarball
+  #   - that one needs AUTH, because it's code that will be executed by workers
   'github-jobs': {
     # the 'wild' tests might exceed 1000 files and 20 MB?
     'max_wwz_entries': 1000,
@@ -192,16 +180,6 @@ PAYLOADS = {
     # sourcehut / Github Actions can retry tasks
     'allow_overwrite': True,
   },
-
-  # TODO:
-  # - policy for uploading cpp-tarball!  This lives in github-jobs/git-$hash
-  #   - this one shouldn't allow overwriting?
-  #   - and it can allow tar
-
-  # - hook for writing jobs index
-  #   - then delete old files
-  # - policy for uploading status API files
-  #   - hook for deleting old files
 }
 
 HOOKS = {
@@ -239,12 +217,26 @@ def ValidateSubdir(subdir, expected_depth):
   return None
 
 
-def CopyFile(temp_file, out_path, allow_overwrite):
-  if allow_overwrite:
-    mode = os.O_CREAT | os.O_WRONLY
-  else:
-    # Fail if the file already exists
-    mode = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+# Notes on streaming / temp files
+# 
+# cgi.py uses a temp file for the entire POST body.  But each file in the
+# multipart form payload is buffered into a StringIO object.
+# 
+# So we
+# 
+# 1. write that in-memory file to another temporary directory
+# 2. make it read-only
+# 3. atomically rename it onto the destination.  If this fails, the file was
+#    already uploaded.
+# 
+# We could use something like 'python-multipart' to stream the upload.
+# 
+# But for now we can just reject files with CONTENT_LENGTH greater than a
+# certain amount.
+
+def CopyFile(input_f, out_path):
+  # Fail if the file already exists
+  mode = os.O_CREAT | os.O_EXCL | os.O_WRONLY
 
   try:
     fd = os.open(out_path, mode, 0o644)
@@ -254,17 +246,13 @@ def CopyFile(temp_file, out_path, allow_overwrite):
   out_f = os.fdopen(fd, 'w')
 
   while True:
-    chunk = temp_file.read(1024 * 1024)  # 1 MB at a time
+    chunk = input_f.read(1024 * 1024)  # 1 MB at a time
     if not chunk:
       break
     out_f.write(chunk)
 
   out_f.close()
-  temp_file.close()
-
-  if not allow_overwrite:
-    # Make it read-only too
-    os.chmod(out_path, 0o444)
+  input_f.close()
 
 
 def DoOneFile(param_name, policy, environ, form_val, out_dir):
@@ -276,7 +264,7 @@ def DoOneFile(param_name, policy, environ, form_val, out_dir):
   if form_val.filename is None:
     raise RuntimeError('Expected %r param to be a file, not a string' % param_name)
 
-  temp_file = form_val.file  # get the file handle
+  input_f = form_val.file  # get the file handle
 
   os.path.splitext
   _, outer_ext = os.path.splitext(form_val.filename)
@@ -289,7 +277,7 @@ def DoOneFile(param_name, policy, environ, form_val, out_dir):
     maybe_trailing_slash = '/'  # for printing URL
 
     try:
-      z = zipfile.ZipFile(temp_file)
+      z = zipfile.ZipFile(input_f)
     except zipfile.BadZipfile as e:
       raise RuntimeError('Error opening zip: %s' % e)
 
@@ -321,7 +309,7 @@ def DoOneFile(param_name, policy, environ, form_val, out_dir):
             raise RuntimeError('Archive file %r has an invalid extension' % rel_path)
 
     # Important: seek back to the beginning, because ZipFile read it!
-    temp_file.seek(0)
+    input_f.seek(0)
 
   elif outer_ext not in ALLOWED_EXTENSIONS:
     # If it's not .wwz, it must be a text file.  This doesn't respect
@@ -329,7 +317,21 @@ def DoOneFile(param_name, policy, environ, form_val, out_dir):
     raise RuntimeError('File %r has an invalid extension' % form_val.filename)
 
   out_path = os.path.join(out_dir, form_val.filename)
-  CopyFile(temp_file, out_path, policy.get('allow_overwrite', False))
+
+  # Note: this check may be racy, but it protects against some accidents
+  allow_overwrite = policy.get('allow_overwrite', False)
+  if not allow_overwrite and os.path.exists(out_path):
+    raise RuntimeError('File already exists: %r' % out_path)
+
+  # The PID is unique at a given point in time.  The worst case is that a
+  # script is interrupted and the file is left there.
+  tmp_out_path = '%s.wwup-%d' % (out_path, os.getpid())
+
+  CopyFile(input_f, tmp_out_path)
+
+  # Make it read-only, just in case.  It still can be replaced by os.rename() or mv.
+  os.chmod(tmp_out_path, 0o444)
+  os.rename(tmp_out_path, out_path)
 
   doc_root = environ['DOCUMENT_ROOT']
   rel_path = out_path[len(doc_root)+1 : ]

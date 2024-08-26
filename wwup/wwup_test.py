@@ -10,12 +10,23 @@ import unittest
 import wwup  # module under test
 
 
-class FooTest(unittest.TestCase):
-  def setUp(self):
-    pass
+class WwupTest(unittest.TestCase):
 
-  def tearDown(self):
-    pass
+  def testPermission(self):
+    import os
+
+    # Making these read only does not prevent them from being REPLACED.
+    # I guess you have to protect the DIRECTORY itself.  Do that later.
+
+    return
+
+    os.system('echo foo > _tmp/foo; chmod 444 _tmp/foo')
+    os.system('echo bar > _tmp/bar; chmod 444 _tmp/bar')
+
+    os.rename('_tmp/foo', '_tmp/final')
+    os.rename('_tmp/bar', '_tmp/final')
+
+    os.system('cat _tmp/final')
 
   def testValidate(self):
 
