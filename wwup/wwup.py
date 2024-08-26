@@ -219,60 +219,14 @@ def CopyFile(temp_file, out_path, allow_overwrite):
     os.chmod(out_path, 0o444)
 
 
-def Upload(environ, stdin, dest_base_dir):
-  # Dumps info
-  #cgi.test()
-
-  # for logging
-  if 0:
-    print('Status: 200 OK')
-    print('Content-Type: text/plain; charset=utf-8')
-    print('')
-    print('OK')
-
-  form = cgi.FieldStorage(fp=stdin, environ=environ)
-
-  # Form field examples:
-  # - payload-type=osh-runtime
-  # - subdir=git-1ab435d
-  # - wwz=@foo.wwz
-
-  payload_type = form.getfirst('payload-type')
-  if payload_type is None:
-    raise RuntimeError('Expected payload type')
-
-  policy = PAYLOADS.get(payload_type)
-  if policy is None:
-    raise RuntimeError('Invalid payload type %r' % payload_type)
-
-  num_bytes = int(environ['CONTENT_LENGTH'])
-  max_bytes = policy['max_bytes']
-  if num_bytes > max_bytes:
-      raise RuntimeError('POST body is %s bytes, but only %s are allowed' %
-          (num_bytes, max_bytes))
-
-  subdir = form.getfirst('subdir')
-  if subdir is None:
-    raise RuntimeError('Expected subdir')
-
-  error_str = ValidateSubdir(subdir, policy['subdir_depth'])
-  if error_str:
-    raise RuntimeError('Invalid subdir %r: %s' % (subdir, error_str))
-
+def DoOneFile(label, policy, environ, wwz_value, out_dir):
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
-
-  # FieldStorage only supports 'in'
-  # - it doesn't support .get()
-  # - getvalue() gives a string
-  if 'wwz' not in form:
-    raise RuntimeError('Expected wwz field')
-  wwz_value = form['wwz']
 
   #print('FILE %r' %  wwz_value.file)
   #print('FILEname %r' %  wwz_value.filename)
   if wwz_value.filename is None:
-    raise RuntimeError('Expected wwz field to be a file, not a string')
+    raise RuntimeError('Expected %s field to be a file, not a string' % label)
 
   temp_file = wwz_value.file  # get the file handle
 
@@ -307,6 +261,67 @@ def Upload(environ, stdin, dest_base_dir):
         if ext not in ALLOWED_EXTENSIONS:
           raise RuntimeError('File %r has an invalid extension' % rel_path)
 
+  # Important: seek back to the beginning, because ZipFile read it!
+  temp_file.seek(0)
+  out_path = os.path.join(out_dir, wwz_value.filename)
+
+  CopyFile(temp_file, out_path, policy.get('allow_overwrite', False))
+
+
+  doc_root = environ['DOCUMENT_ROOT']
+  rel_path = out_path[len(doc_root)+1 : ]
+  http_host = environ['HTTP_HOST']
+
+  # Trailing slash for .wwz
+  url = 'https://%s/%s/' % (http_host, rel_path)
+
+  return {
+      'filename': wwz_value.filename,
+      'num_files': num_files,
+      'out_path': out_path,
+      'url': url,
+      }
+
+
+def Upload(environ, form, dest_base_dir):
+
+  # for logging
+  if 0:
+    print('Status: 200 OK')
+    print('Content-Type: text/plain; charset=utf-8')
+    print('')
+    print('OK')
+
+  # Form field examples:
+  # - payload-type=osh-runtime
+  # - subdir=git-1ab435d
+  # - wwz=@foo.wwz
+
+  payload_type = form.getfirst('payload-type')
+  if payload_type is None:
+    raise RuntimeError('Expected payload type')
+
+  policy = PAYLOADS.get(payload_type)
+  if policy is None:
+    raise RuntimeError('Invalid payload type %r' % payload_type)
+
+  num_bytes = int(environ['CONTENT_LENGTH'])
+  max_bytes = policy['max_bytes']
+  if num_bytes > max_bytes:
+      raise RuntimeError('POST body is %s bytes, but only %s are allowed' %
+          (num_bytes, max_bytes))
+
+  subdir = form.getfirst('subdir')
+  if subdir is None:
+    raise RuntimeError('Expected subdir')
+
+  error_str = ValidateSubdir(subdir, policy['subdir_depth'])
+  if error_str:
+    raise RuntimeError('Invalid subdir %r: %s' % (subdir, error_str))
+
+  # Now process up to 3 files: file1=  file2=  file3=
+  # If the extension is .wwz, then open up the contents and validate it
+
   out_dir = os.path.join(dest_base_dir, payload_type, subdir)
   try:
     os.makedirs(out_dir)
@@ -314,11 +329,22 @@ def Upload(environ, stdin, dest_base_dir):
     if e.errno != errno.EEXIST:
       raise
 
-  # Important: seek back to the beginning, because ZipFile read it!
-  temp_file.seek(0)
-  out_path = os.path.join(out_dir, wwz_value.filename)
+  summaries = []
 
-  CopyFile(temp_file, out_path, policy.get('allow_overwrite', False))
+  # FieldStorage only supports 'in'
+  # - it doesn't support .get()
+  # - getvalue() gives a string
+  if 'file1' in form:
+    file1_value = form['file1']
+    summaries.append(DoOneFile('file1', policy, environ, file1_value, out_dir))
+
+  if 'file2' in form:
+    file2_value = form['file2']
+    summaries.append(DoOneFile('file2', policy, environ, file2_value, out_dir))
+
+  if 'file3' in form:
+    file3_value = form['file3']
+    summaries.append(DoOneFile('file3', policy, environ, file3_value, out_dir))
 
   PrintStatusOk()
 
@@ -326,26 +352,20 @@ def Upload(environ, stdin, dest_base_dir):
   print('')
   print('payload type = %s' % payload_type)
   print('subdir = %r' % subdir)
-  print('filename = %r' % wwz_value.filename)
-  print('num files = %r' % num_files)
   print('num bytes = %r' % num_bytes)
   print('')
 
-  print('Wrote %r' % out_path)
+  for summary in summaries:
+    print('summary = %r' % summary)
   print('')
 
-  doc_root = environ['DOCUMENT_ROOT']
-  rel_path = out_path[len(doc_root)+1 : ]
-  http_host = environ['HTTP_HOST']
 
-  # Trailing slash for .wwz
-  # TODO: Change this to https
-  print('URL: http://%s/%s/' % (http_host, rel_path))
-  print('')
+def RunHook(environ, form, run_hook):
+  PrintStatusOk()
 
-  if 0:
-    for rel_path in names:
-      print('%r' % rel_path)
+  # TODO: Look up policy?
+
+  print('TODO: Run hook %r' % run_hook)
 
 
 def main(argv):
@@ -355,7 +375,7 @@ def main(argv):
 
   if method == 'GET':
     print(r'''
-wwwup.cgi - HTTP uploader
+wwup.cgi - HTTP uploader
 
 Example usage:
 
@@ -364,15 +384,36 @@ Example usage:
       --form 'subdir=git-123' \
       --form 'wwz=@myfile.wwz' \
       $URL
+
+    curl \
+      --form 'payload-type=soil-ci' \
+      --form 'subdir=git-123' \
+      --form 'wwz=@benchmarks.wwz' \
+      --form 'file1=@benchmarks.tsv' \
+      --form 'file2=@benchmarks.json' \
+      $URL
+
+    curl \
+      --form 'run-hook=soil-event-job-done' \
+      $URL
 ''')
     return
+
+  # Dumps info
+  #cgi.test()
 
   # TODO: We could throttle here, e.g. if there are too many files
 
   dest_base_dir = sys.argv[1]
 
+  form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
+  run_hook = form.getfirst('run-hook')
+
   try:
-    Upload(os.environ, sys.stdin, dest_base_dir)
+    if run_hook is not None:
+      RunHook(os.environ, form, run_hook)
+    else:
+      Upload(os.environ, form, dest_base_dir)
   except RuntimeError as e:
     # CGI has a Status: header!
     print('Status: 400 Bad Request')

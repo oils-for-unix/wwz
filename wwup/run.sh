@@ -33,7 +33,17 @@ upload-overwrite() {
     --include \
     --form 'payload-type=only-2-files' \
     --form 'subdir=git-133' \
-    --form 'wwz=@_tmp/overwrite.wwz' \
+    --form 'file1=@_tmp/overwrite.wwz' \
+    $WWUP_URL
+}
+
+upload-multiple() {
+  curl \
+    --include \
+    --form 'payload-type=osh-runtime' \
+    --form 'subdir=multiple-456' \
+    --form 'file1=@_tmp/one.wwz' \
+    --form 'file2=@_tmp/overwrite.wwz' \
     $WWUP_URL
 }
 
@@ -42,7 +52,7 @@ upload-one() {
     --include \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-133' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 }
 
@@ -50,14 +60,14 @@ upload-bad-type() {
   banner 'Missing payload type'
   curl \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 
   banner 'Invalid payload type'
   curl \
     --form 'payload-type=yyy' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 }
 
@@ -65,21 +75,21 @@ upload-bad-subdir() {
   banner 'Missing subdir'
   curl \
     --form 'payload-type=osh-runtime' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 
   banner 'Invalid subdir'
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=/root' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 
   banner 'Invalid subdir with too many parts'
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=one/two' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 }
 
@@ -105,7 +115,7 @@ upload-bad-zip() {
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/notzip' \
+    --form 'file1=@_tmp/notzip' \
     $WWUP_URL
 }
 
@@ -114,26 +124,26 @@ upload-disallowed() {
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/bad.wwz' \
+    --form 'file1=@_tmp/bad.wwz' \
     $WWUP_URL
 
   # dir traversal
   curl \
     --form 'payload-type=osh-runtime' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/bad2.wwz' \
+    --form 'file1=@_tmp/bad2.wwz' \
     $WWUP_URL
 
   curl \
     --form 'payload-type=only-2-files' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 
   curl \
     --form 'payload-type=only-3-bytes' \
     --form 'subdir=git-123' \
-    --form 'wwz=@_tmp/one.wwz' \
+    --form 'file1=@_tmp/one.wwz' \
     $WWUP_URL
 }
 
@@ -245,6 +255,10 @@ demo() {
   echo
 
   upload-one
+  echo status=$?
+  echo
+
+  upload-multiple
   echo status=$?
   echo
 }
