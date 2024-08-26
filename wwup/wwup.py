@@ -211,6 +211,7 @@ HOOKS = {
     },
 }
 
+
 def ValidateSubdir(subdir, expected_depth):
   parts = subdir.split('/')
   for part in parts:
@@ -252,14 +253,14 @@ def CopyFile(temp_file, out_path, allow_overwrite):
     os.chmod(out_path, 0o444)
 
 
-def DoOneFile(label, policy, environ, form_val, out_dir):
+def DoOneFile(param_name, policy, environ, form_val, out_dir):
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
 
   #print('FILE %r' %  form_val.file)
   #print('FILEname %r' %  form_val.filename)
   if form_val.filename is None:
-    raise RuntimeError('Expected %s field to be a file, not a string' % label)
+    raise RuntimeError('Expected %r param to be a file, not a string' % param_name)
 
   temp_file = form_val.file  # get the file handle
 
@@ -331,6 +332,19 @@ def DoOneFile(label, policy, environ, form_val, out_dir):
       }
 
 
+def GetFileValues(form):
+  # FieldStorage only supports 'in'
+  # - it doesn't support .get()
+  # - getvalue() gives a string
+
+  pairs = []
+  for k in ['file1', 'file2', 'file3']:
+    if k not in form:
+      break
+    pairs.append((k, form[k]))
+  return pairs
+
+
 def Upload(environ, form, dest_base_dir):
 
   # for logging
@@ -345,9 +359,9 @@ def Upload(environ, form, dest_base_dir):
   # - subdir=git-1ab435d
   # - wwz=@foo.wwz
 
-  payload_type = form.getfirst('payload-type')
-  if payload_type is None:
+  if 'payload-type' not in form:
     raise RuntimeError('Expected payload type')
+  payload_type = form['payload-type'].value
 
   policy = PAYLOADS.get(payload_type)
   if policy is None:
@@ -360,9 +374,9 @@ def Upload(environ, form, dest_base_dir):
       raise RuntimeError('POST body is %s bytes, but only %s are allowed' %
           (num_bytes, max_bytes))
 
-  subdir = form.getfirst('subdir')
-  if subdir is None:
+  if 'subdir' not in form:
     raise RuntimeError('Expected subdir')
+  subdir = form['subdir'].value
 
   error_str = ValidateSubdir(subdir, policy.get('subdir_depth', 1))
   if error_str:
@@ -380,20 +394,9 @@ def Upload(environ, form, dest_base_dir):
 
   summaries = []
 
-  # FieldStorage only supports 'in'
-  # - it doesn't support .get()
-  # - getvalue() gives a string
-  if 'file1' in form:
-    file1_value = form['file1']
-    summaries.append(DoOneFile('file1', policy, environ, file1_value, out_dir))
-
-  if 'file2' in form:
-    file2_value = form['file2']
-    summaries.append(DoOneFile('file2', policy, environ, file2_value, out_dir))
-
-  if 'file3' in form:
-    file3_value = form['file3']
-    summaries.append(DoOneFile('file3', policy, environ, file3_value, out_dir))
+  file_vals = GetFileValues(form)
+  for param_name, file_val in file_vals:
+    summaries.append(DoOneFile(param_name, policy, environ, file_val, out_dir))
 
   PrintStatusOk()
 
@@ -409,6 +412,16 @@ def Upload(environ, form, dest_base_dir):
   print('')
 
 
+def GetMoreArgv(form):
+  argv = []
+  for k in ['arg1', 'arg2', 'arg3']:
+    if k not in form:
+      break
+    # TODO: assert that it's a string, not a value?
+    argv.append(form[k].value)
+  return argv
+
+
 def RunHook(environ, home_dir, hook_config, form):
   PrintStatusOk()
 
@@ -418,7 +431,7 @@ def RunHook(environ, home_dir, hook_config, form):
   argv0_path = os.path.join(home_dir, argv0)
   argv_prefix = hook_config.get('argv_prefix', [])
 
-  argv = [argv0_path] + argv_prefix
+  argv = [argv0_path] + argv_prefix + GetMoreArgv(form)
 
   print('Running hook %r' % hook_config)
   print('argv %r' % argv)
@@ -489,10 +502,10 @@ Example usage:
   dest_base_dir = sys.argv[1]
 
   form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
-  run_hook = form.getfirst('run-hook')
 
   try:
-    if run_hook is not None:
+    if 'run-hook' in form:
+      run_hook = form['run-hook'].value
       home_dir = GetHomeDir()
       hook_config = HOOKS.get(run_hook)
       if hook_config is None:
