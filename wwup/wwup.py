@@ -182,6 +182,9 @@ PAYLOADS = {
   },
 }
 
+# Copy this policy for now
+PAYLOADS['sourcehut-jobs'] = PAYLOADS['github-jobs']
+
 HOOKS = {
     'soil-web-hello': {
       'argv0': 'soil-web/soil/web.sh',

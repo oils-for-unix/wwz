@@ -236,7 +236,16 @@ inherit-test() {
 }
 
 deploy() {
-  scp wwup.{py,cgi} $HOST:$DIR
+  local subdomain=${1:-uuu}
+
+  local domain=oilshell.org
+  local host=$subdomain.$domain
+  local dir=$subdomain.$domain
+
+  scp wwup.py $host:$dir
+
+  # this file is custom
+  scp ${subdomain}_wwup.cgi $host:$dir/wwup.cgi
 }
 
 demo() {
