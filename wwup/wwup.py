@@ -472,7 +472,6 @@ def RunHook(environ, home_dir, hook_config, form):
   # TODO:
   # If status is non-zero, we could return HTTP 500.
 
-  subprocess.check_call(argv)
   p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   stdout, stderr = p.communicate()
 
