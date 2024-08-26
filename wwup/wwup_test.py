@@ -12,7 +12,12 @@ import wwup  # module under test
 
 class WwupTest(unittest.TestCase):
 
-  def testPermission(self):
+  def testRunHook(self):
+    home_dir = wwup.GetHomeDir()
+    hook_config = wwup.HOOKS.get('local-test')
+    wwup.RunHook({}, home_dir, hook_config, {})
+
+  def testAtomicRename(self):
     import os
 
     # Making these read only does not prevent them from being REPLACED.

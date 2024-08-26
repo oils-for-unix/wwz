@@ -236,16 +236,17 @@ inherit-test() {
 }
 
 deploy() {
-  local subdomain=${1:-uuu}
+  local subdomain=${1:-ci}
 
   local domain=oilshell.org
   local host=$subdomain.$domain
   local dir=$subdomain.$domain
 
-  scp wwup.py $host:$dir
+  local dest_dir=$host:$dir/uuu
+  scp wwup.py $dest_dir
 
   # this file is custom
-  scp ${subdomain}_wwup.cgi $host:$dir/wwup.cgi
+  scp ${subdomain}_wwup.cgi $dest_dir/wwup.cgi
 }
 
 demo() {

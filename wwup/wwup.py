@@ -186,6 +186,11 @@ PAYLOADS = {
 PAYLOADS['sourcehut-jobs'] = PAYLOADS['github-jobs']
 
 HOOKS = {
+    'local-test': {
+      'argv0': 'git/oilshell/oil/soil/web.sh',
+      'argv_prefix': ['hello'],
+    },
+
     'soil-web-hello': {
       'argv0': 'soil-web/soil/web.sh',
       'argv_prefix': ['hello'],
@@ -468,6 +473,25 @@ def RunHook(environ, home_dir, hook_config, form):
   # If status is non-zero, we could return HTTP 500.
 
   subprocess.check_call(argv)
+  p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+  stdout, stderr = p.communicate()
+
+  status = p.wait()
+  print('')
+  print('--- STATUS: %d' % status)
+  print('')
+
+  print('--- STDOUT:')
+  print('')
+  print(stdout)
+  print('')
+  print('')
+
+  print('--- STDERR:')
+  print('')
+  print(stderr)
+  print('')
+  print('')
 
 
 def GetHomeDir():
