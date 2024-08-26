@@ -149,8 +149,8 @@ PAYLOADS = {
 
   # Policy for jobs uploading .wwz, .tsv, .json
   'github-jobs': {
-    # benchmarks task has 3450 files
-    'max_wwz_entries': 4000,
+    # wild.wwz has 21K files; benchmarks.wwz task has 3450 files
+    'max_wwz_entries': 21000,
     # wild.wwz is 23 MB
     'max_bytes': 30 * 1000 * 1000,
 
