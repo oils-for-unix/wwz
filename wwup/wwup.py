@@ -1,73 +1,41 @@
 #!/usr/bin/env python2
 from __future__ import print_function
 """
-wwup.cgi
+wwup.cgi - HTTP uploader and "hook" runner
 
-Upload untrusted user content.
+Features:
 
+- Atomically rename to final destination
 - Validate the uploaded data
-  - Only data files like .txt .tsv .csv .json are allowed.
+  - text content like .txt .tsv .csv .json is safe
   - No web content like .html .css .js.
-  - Maybe enforce naming?
-    - Directory is /U/$payload_type
-    - e.g. /U/osh-runtime/git-$commit/$client_name.wwz
-      - git-commit enforces that it's a real build
-      - $client_name could be the machine name, or it could also be
-        github-actions.$machine and sourcehut.$machine
-      - can also be $user.machine
-        - github actions uses 'runner', container is 'uke'
-        - sourcehut is 'build'
-        - we can test based on env vars
-    - cleanup will sort by 'last modified' timestamp I guess
+    - .wwz is grandfathered - it only recognizes file types too
+  - enforces directory structure
 
 - Control resource usage
-  - Limit the size of each upload
-  - Delete old files automatically
-  - Check total size and space perhaps?
+  - Total size of each file
+  - Number of entires in the .wwz file
+- TODO: Delete old files automatically
 
-- Run aggregation hooks
+- Run hooks
   - Concatenate TSV files for easier analysis
   - Generate HTML with trusted binaries
-
-- Type of aggregation
-  - across machines for a different commit
-
-  - then DIFF by COMMIT
 
 ## Soil CI
 
 The uploaded structure we want:
 
-    uuu.oilshell.org/
-      wwup.cgi
-      github-jobs/
-        7783/
-          benchmarks.wwz
-          benchmarks.json
-          benchmarks.tsv
-
-The HTTP POST request.  There are three params:
-
-  payload-type=soil
-  subdir=github-jobs/7783
-  wwz=@benchmarks.wwz
-
-- OK might as well add the ability to upload multiple files?
-  - is wwz special?  Yes because we open it up and validate it with zipfile
-
-  file1=benchmarks.json
-  file2=benchmarks.tsv
-
-Note: it might be possible to generalize this into an array, but let's keep it
-simple for now.
-
-TODO:
-
-- This means that 'subdir' is `github-jobs/7783` then?
-  - we have to allow a slash
-  - disallow path components that are . or ..
-- allow raw HTML here
-  - maybe allowed_exts: [] is part of the configuration
+    ci.oilshell.org/
+      uuu/                    # uploaded by wwup
+        wwup.cgi
+        github-jobs/
+          7783/
+            benchmarks.wwz
+            benchmarks.json
+            benchmarks.tsv
+      code/                   # uploaded by SSH only
+        git-$hash/
+          oils-for-unix.tar
 """
 
 import cgi
@@ -88,6 +56,20 @@ def PrintStatusOk():
   print('')
 
 
+def PrintError400():
+  """Client error"""
+  print('Status: 400 Bad Request')
+  print('Content-Type: text/plain; charset=utf-8')
+  print('')
+
+
+def PrintError500():
+  """Server error"""
+  print('Status: 500 Internal Server Error')
+  print('Content-Type: text/plain; charset=utf-8')
+  print('')
+
+
 # Debug before main()
 if 0:
   PrintStatusOk()
@@ -104,8 +86,8 @@ def log(msg, *args):
 # definitely no .js .css .html
 ALLOWED_EXTENSIONS = ['.txt', '.tsv', '.csv', '.json']
 
-# Temporary - we need to split policies for .wwz and .tar
-ALLOWED_EXTENSIONS.append('.tar')
+# Not using this to upload tar files
+# ALLOWED_EXTENSIONS.append('.tar')
 
 # Rules by payload:
 
@@ -263,8 +245,6 @@ def DoOneFile(param_name, policy, environ, form_val, out_dir):
   # The cgi module stores file uploads in a temp directory (like PHP).  So we
   # read it and write it to a new location 1 MB at a time.
 
-  #print('FILE %r' %  form_val.file)
-  #print('FILEname %r' %  form_val.filename)
   if form_val.filename is None:
     raise RuntimeError('Expected %r param to be a file, not a string' % param_name)
 
@@ -367,17 +347,10 @@ def GetFileValues(form):
 
 def Upload(environ, form, dest_base_dir):
 
-  # for logging
-  if 0:
-    print('Status: 200 OK')
-    print('Content-Type: text/plain; charset=utf-8')
-    print('')
-    print('OK')
-
   # Form field examples:
-  # - payload-type=osh-runtime
-  # - subdir=git-1ab435d
-  # - wwz=@foo.wwz
+  #   payload-type=osh-runtime
+  #   subdir=git-1ab435d
+  #   file1=@foo.wwz
 
   if 'payload-type' not in form:
     raise RuntimeError('Expected payload type')
@@ -420,7 +393,7 @@ def Upload(environ, form, dest_base_dir):
 
   PrintStatusOk()
 
-  print('Hi from wwup.cgi')
+  print('--- wwup.cgi Upload ---')
   print('')
   print('payload type = %s' % payload_type)
   print('subdir = %r' % subdir)
@@ -443,8 +416,6 @@ def GetMoreArgv(form):
 
 
 def RunHook(environ, home_dir, hook_config, form):
-  PrintStatusOk()
-
   argv0 = hook_config['argv0']
   assert not os.path.isabs(argv0), argv0
 
@@ -453,25 +424,20 @@ def RunHook(environ, home_dir, hook_config, form):
 
   argv = [argv0_path] + argv_prefix + GetMoreArgv(form)
 
-  print('Running hook %r' % hook_config)
-  print('argv %r' % argv)
-  print('')
-
-  # Required so that HTTP headers are printed
-
-  sys.stdout.flush()
-
-  # Note: should we have less trust in this binary?  We own it and deploy it.
-  #
-  # We could capture BOTH stdout and stderr, and print them to the response?
-  #
-  # TODO:
-  # If status is non-zero, we could return HTTP 500.
-
   p = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   stdout, stderr = p.communicate()
 
   status = p.wait()
+  if status == 0:
+    PrintStatusOk()
+  else:
+    PrintError500()
+
+  print('--- wwup.cgi run-hook ---')
+  print('hook %r' % hook_config)
+  print('argv %r' % argv)
+  print('')
+
   print('')
   print('--- STATUS: %d' % status)
   print('')
@@ -552,10 +518,8 @@ Example usage:
     else:
       Upload(os.environ, form, dest_base_dir)
   except RuntimeError as e:
-    # CGI has a Status: header!
+    PrintError400()
     print('Status: 400 Bad Request')
-    print('Content-Type: text/plain; charset=utf-8')
-    print('')
     print('Bad request: %s' % e)
 
   # Logging
@@ -576,12 +540,10 @@ Example usage:
   # - Executables in the repo cannot generate HTML/JS/CSS web content.
   # - Only executables we control and deploy manually.
 
-  print('Done wwup.cgi')
+  print('--- wwup.cgi Done ---')
 
 
 if __name__ == '__main__':
   main(sys.argv)
 
 # vim: sw=2
-
-

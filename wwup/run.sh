@@ -2,6 +2,11 @@
 #
 # Usage:
 #   ./run.sh <function name>
+#
+# TODO:
+# - turn all these cases into hard assertions, checking curl {http_code}
+#   - use no-quotes.sh
+# - deploy to multiple hosts, and run tests against all
 
 set -o nounset
 set -o pipefail
@@ -10,8 +15,6 @@ set -o errexit
 readonly HOST=ci.oilshell.org
 readonly DIR=ci.oilshell.org
 
-#readonly WWUP_URL=http://ci.oilshell.org/wwup.cgi
-
 # Redirecting to HTTPS, which is annoying
 readonly WWUP_URL=https://ci.oilshell.org/uuu/wwup.cgi
 
@@ -19,13 +22,6 @@ banner() {
   echo ---
   echo "$@"
   echo
-}
-
-setup() {
-  # Matches params in wwup.cgi
-
-  # /uuu/ for for 'untrusted user uploads'
-  ssh $HOST "mkdir -v -p $DIR/uuu"
 }
 
 upload-overwrite() {
@@ -296,11 +292,13 @@ hook-hello() {
     --form 'run-hook=zzz' \
     $WWUP_URL
 
+  # Could also test if the file is not executable, etc.
   banner 'Error in hook / misconfigured hook'
-  # TODO: the file is not executable, etc.  It returns status 1
   curl \
     --include \
-    --form 'run-hook=bad-hook' \
+    --form 'run-hook=soil-web-hello' \
+    --form 'arg1=arg1' \
+    --form 'arg2=FAIL' \
     $WWUP_URL
 
   banner 'hook-hello'
@@ -311,7 +309,6 @@ hook-hello() {
     --form 'arg1=arg1' \
     --form 'arg2=arg2' \
     $WWUP_URL
-
 }
 
 hook-demo() {

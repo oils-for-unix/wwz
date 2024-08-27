@@ -10,12 +10,23 @@ import unittest
 import wwup  # module under test
 
 
+class _FormValue(object):
+  def __init__(self, value):
+    self.value = value
+
+
 class WwupTest(unittest.TestCase):
 
   def testRunHook(self):
     home_dir = wwup.GetHomeDir()
     hook_config = wwup.HOOKS.get('local-test')
     wwup.RunHook({}, home_dir, hook_config, {})
+
+    params1 = {'arg1': _FormValue('one'), 'arg2': _FormValue('two')}
+    wwup.RunHook({}, home_dir, hook_config, params1)
+
+    params2 = {'arg1': _FormValue('FAIL')}
+    wwup.RunHook({}, home_dir, hook_config, params2)
 
   def testAtomicRename(self):
     import os
