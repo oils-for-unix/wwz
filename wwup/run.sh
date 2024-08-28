@@ -12,11 +12,25 @@ set -o nounset
 set -o pipefail
 set -o errexit
 
-readonly HOST=ci.oilshell.org
-readonly DIR=ci.oilshell.org
+#_soil_service=dh
+_soil_service=mb
+
+case $_soil_service in
+  dh)
+    readonly HOST=ci.oilshell.org
+    readonly DIR=ci.oilshell.org
+    ;;
+  mb)
+    readonly HOST=mb.oils.pub
+    readonly DIR=www/mb.oils.pub
+    ;;
+  *)
+    echo "Invalid Soil service $_soil_service"
+    ;;
+esac
 
 # Redirecting to HTTPS, which is annoying
-readonly WWUP_URL=https://ci.oilshell.org/uuu/wwup.cgi
+readonly WWUP_URL=https://$HOST/uuu/wwup.cgi
 
 banner() {
   echo ---
@@ -233,17 +247,11 @@ inherit-test() {
 }
 
 deploy() {
-  local subdomain=${1:-ci}
-
-  local domain=oilshell.org
-  local host=$subdomain.$domain
-  local dir=$subdomain.$domain
-
-  local dest_dir=$host:$dir/uuu
+  local dest_dir=$HOST:$DIR/uuu
   scp wwup.py $dest_dir
 
   # this file is custom
-  scp ${subdomain}_wwup.cgi $dest_dir/wwup.cgi
+  scp ${_soil_service}_wwup.cgi $dest_dir/wwup.cgi
 }
 
 demo() {
