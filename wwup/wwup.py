@@ -466,7 +466,11 @@ def GetHomeDir():
 
 
 def main(argv):
-  cgitb.enable()  # Enable tracebacks
+  if 1:
+    cgitb.enable()  # Enable tracebacks
+  else:
+    # Dumps to file
+    cgitb.enable(display=0, logdir='/home/oils', format='text')
 
   method = os.getenv('REQUEST_METHOD', 'GET')
 
@@ -508,7 +512,11 @@ Example usage:
   form = cgi.FieldStorage(fp=sys.stdin, environ=os.environ)
 
   try:
-    if 'run-hook' in form:
+    if 'cgitb-test' in form:
+      # BUG
+      print(sys.argv[99])
+
+    elif 'run-hook' in form:
       run_hook = form['run-hook'].value
       home_dir = GetHomeDir()
       hook_config = HOOKS.get(run_hook)
