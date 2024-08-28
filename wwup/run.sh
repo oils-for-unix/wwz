@@ -21,8 +21,8 @@ case $_soil_service in
     readonly DIR=ci.oilshell.org
     ;;
   mb)
-    readonly HOST=mb.oils.pub
-    readonly DIR=www/mb.oils.pub
+    readonly HOST=mb.oilshell.org
+    readonly DIR=www/mb.oilshell.org
     ;;
   *)
     echo "Invalid Soil service $_soil_service"
