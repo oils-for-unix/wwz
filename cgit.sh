@@ -24,7 +24,7 @@ extract() {
 readonly SRC_DIR=_tmp/cgit-1.2.3
 
 build() {
-  local makefile_override=${1:-test-cgit.conf}
+  local makefile_override=${1:-mb-cgit.conf}
 
   cp -v $makefile_override $SRC_DIR/cgit.conf
 
@@ -46,7 +46,7 @@ install() {
 }
 
 smoke-test() {
-  local dir=/home/andy/cgit
+  local dir=~/cgit
 
   ls -l $dir
 
