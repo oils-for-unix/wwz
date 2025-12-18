@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Usage:
-#   ./cgit.sh <function name>
+#   cgit/run.sh <function name>
 
 set -o nounset
 set -o pipefail
@@ -23,16 +23,20 @@ extract() {
 
 readonly SRC_DIR=_tmp/cgit-1.2.3
 
+fetch() {
+  # build with git version
+  pushd $SRC_DIR
+  make get-git
+  popd
+}
+
 build() {
-  local makefile_override=${1:-mb-cgit.conf}
+  local makefile_override=${1:-cgit/mb-cgit.conf}
 
   cp -v $makefile_override $SRC_DIR/cgit.conf
 
   pushd $SRC_DIR
 
-  # build with git version
-  make get-git
-  echo
 
   make
 

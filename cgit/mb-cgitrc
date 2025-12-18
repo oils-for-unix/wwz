@@ -1,0 +1,5 @@
+repo.url=wwz
+repo.path=/home/oils/git/oils-for-unix/wwz/.git
+repo.desc=Serve web content out of a .zip file
+repo.owner=andy@oils.pub
+repo.readme=info/web/about.html
