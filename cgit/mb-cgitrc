@@ -1,5 +1,11 @@
+# Specify URLs
+css=/cgit/cgit.css
+logo=/cgit/cgit.png
+favicon=/cgit/favicon.ico
+
 repo.url=wwz
 repo.path=/home/oils/git/oils-for-unix/wwz/.git
 repo.desc=Serve web content out of a .zip file
 repo.owner=andy@oils.pub
 repo.readme=info/web/about.html
+
