@@ -18,8 +18,8 @@ extract() {
   popd
 }
 
-# Build instructions in README
-# and Makefile
+# Build instructions in README and Makefile
+# Runtime instructions in cgitrc.5.txt
 
 readonly SRC_DIR=_tmp/cgit-1.2.3
 
