@@ -60,4 +60,11 @@ smoke-test() {
   PATH_INFO=/  $dir/cgit.cgi
 }
 
+deploy-robots() {
+  ### Adapted from default
+
+  cp -v cgit/mb-robots.txt ~/www/d.oils.pub/robots.txt
+}
+
+
 "$@"

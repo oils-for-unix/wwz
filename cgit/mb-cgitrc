@@ -3,6 +3,18 @@ css=/cgit/cgit.css
 logo=/cgit/cgit.png
 favicon=/cgit/favicon.ico
 
+repo.url=blog-code
+repo.path=/home/oils/git/oils-for-unix/blog-code/.git
+repo.desc=Oils Blog Code
+repo.owner=andy@oils.pub
+repo.readme=info/web/about.html
+
+repo.url=hashdiv
+repo.path=/home/oils/git/oils-for-unix/hashdiv/.git
+repo.desc=Web Snippets
+repo.owner=andy@oils.pub
+repo.readme=info/web/about.html
+
 repo.url=wwz
 repo.path=/home/oils/git/oils-for-unix/wwz/.git
 repo.desc=Serve web content out of a .zip file
