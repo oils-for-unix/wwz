@@ -2,8 +2,11 @@
 Options +ExecCGI
 AddHandler cgi-script .cgi
 
-# This doesn't work?
-#RewriteEngine On
-#RewriteRule /cgit/(.*)$ /cgit/cgit.cgi/$1 [L]
+# Problems with making URLs pretty:
+# - Using cgit/ can cause redirect loops
+# - Using git/ doesn't change the URLs that cgit gives out?
+
+# RewriteEngine On
+# RewriteRule ^git/(.*)$ /cgit/cgit.cgi/$1 [L]
 
 AddDefaultCharset UTF-8
