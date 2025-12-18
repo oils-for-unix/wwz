@@ -1,0 +1,9 @@
+# for cgit, from Claude
+Options +ExecCGI
+AddHandler cgi-script .cgi
+
+# This doesn't work?
+#RewriteEngine On
+#RewriteRule /cgit/(.*)$ /cgit/cgit.cgi/$1 [L]
+
+AddDefaultCharset UTF-8
