@@ -21,3 +21,9 @@ repo.desc=Serve web content out of a .zip file
 repo.owner=andy@oils.pub
 repo.readme=info/web/about.html
 
+repo.url=soil-ci.vat
+repo.path=/home/oils/vat-test/soil-ci.vat
+repo.desc=Test
+repo.owner=andy@oils.pub
+repo.readme=info/web/about.html
+
